@@ -90,16 +90,24 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             "servers": [
                 {
                     "tag": "remote",
-                    "address": "8.8.8.8",
+                    "address": "tls://8.8.8.8",
                     "detour": "proxy"
+                },
+                {
+                    "tag": "local",
+                    "address": "https://1.1.1.1/dns-query",
+                    "detour": "direct"
                 }
+            ],
+            "rules": [
+                { "outbound": "any", "server": "local" }
             ]
         },
         "inbounds": [
             {
                 "type": "tun",
                 "tag": "tun-in",
-                "interface_name": "SpicyVPN-TUN",
+                "interface_name": "sing-box-tun",
                 "inet4_address": "172.19.0.1/30",
                 "auto_route": true,
                 "strict_route": true,
@@ -114,6 +122,8 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "server": host,
                 "server_port": port,
                 "password": uuid,
+                "up_mbps": 100,
+                "down_mbps": 100,
                 "tls": {
                     "enabled": true,
                     "server_name": sni,
@@ -150,8 +160,15 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let mut status_lock = state.status.lock().unwrap();
     *status_lock = "connected".to_string();
 
+    let app_clone = app.clone();
     tauri::async_runtime::spawn(async move {
-        while let Some(_) = rx.recv().await {}
+        while let Some(event) = rx.recv().await {
+            if let tauri_plugin_shell::process::CommandEvent::Stdout(line) = event {
+                let _ = app_clone.emit("vpn-log", String::from_utf8_lossy(&line).to_string());
+            } else if let tauri_plugin_shell::process::CommandEvent::Stderr(line) = event {
+                let _ = app_clone.emit("vpn-log", String::from_utf8_lossy(&line).to_string());
+            }
+        }
     });
 
     Ok(())
@@ -176,22 +193,7 @@ fn get_vpn_status(state: State<'_, VpnState>) -> String {
 
 #[tauri::command]
 fn request_close(app: AppHandle) {
-    let window = app.get_webview_window("main").unwrap();
-    
-    app.dialog()
-        .message("Do you want to quit the application or just minimize to the system tray?")
-        .title("Close SpicyVPN")
-        .kind(tauri_plugin_dialog::MessageDialogKind::Info)
-        .buttons(
-            tauri_plugin_dialog::MessageDialogButtons::OkCancelCustom("Quit".to_string(), "Minimize to Tray".to_string())
-        )
-        .show(move |res| {
-            if res {
-                app.exit(0);
-            } else {
-                window.hide().unwrap();
-            }
-        });
+    let _ = app.emit("show-quit-dialog", ());
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
