@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { load } from "@tauri-apps/plugin-store";
-import { Power, Wifi, Clock, Settings, X, Minus } from "lucide-react";
+import { Power, Wifi, Clock, Settings, X, Minus, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Dither from "./components/Dither";
 
@@ -19,8 +18,6 @@ export default function App() {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState("");
-  
-  const appWindow = getCurrentWindow();
 
   useEffect(() => {
     async function loadSettings() {
@@ -39,7 +36,7 @@ export default function App() {
     loadSettings();
   }, []);
 
-  async function fetchStats(link: String) {
+  async function fetchStats(link: string) {
     try {
       const res = await invoke<Stats>("fetch_sub_stats", { url: link });
       setStats(res);
@@ -130,10 +127,10 @@ export default function App() {
           <span className="text-xs font-semibold tracking-wide text-white/70">SpicyVPN</span>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => appWindow.minimize()} className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-md transition-colors no-drag">
+          <button onClick={() => invoke("minimize_window")} className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-md transition-colors no-drag">
             <Minus className="w-3.5 h-3.5" />
           </button>
-          <button onClick={() => invoke("exit_app")} className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors no-drag">
+          <button onClick={() => invoke("hide_window")} className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors no-drag">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -173,6 +170,13 @@ export default function App() {
                 className="w-full cursor-pointer pointer-events-auto bg-white text-black font-semibold rounded-lg py-3 text-sm hover:bg-white/90 transition-colors"
               >
                 Save & Continue
+              </button>
+              <button 
+                type="button"
+                onClick={() => invoke("exit_app")}
+                className="w-full mt-2 text-white/20 hover:text-red-400 text-xs py-2 transition-colors flex items-center justify-center gap-2"
+              >
+                <LogOut className="w-3 h-3" /> Quit Application
               </button>
             </motion.form>
           ) : (
@@ -233,12 +237,20 @@ export default function App() {
                         <Clock className="w-3 h-3" /> 
                         {stats ? `${daysLeft(stats.expire)} days left` : '--'}
                       </span>
-                      <button 
-                        onClick={() => setIsEditingLink(true)}
-                        className="flex items-center gap-1 hover:text-white transition-colors"
-                      >
-                        <Settings className="w-3 h-3" /> Config
-                      </button>
+                      <div className="flex gap-4">
+                        <button 
+                          onClick={() => setIsEditingLink(true)}
+                          className="flex items-center gap-1 hover:text-white transition-colors"
+                        >
+                          <Settings className="w-3 h-3" /> Config
+                        </button>
+                        <button 
+                          onClick={() => invoke("exit_app")}
+                          className="flex items-center gap-1 hover:text-red-400 transition-colors"
+                        >
+                          <LogOut className="w-3 h-3" /> Quit
+                        </button>
+                      </div>
                     </div>
                   </>
                 )}

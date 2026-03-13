@@ -205,6 +205,20 @@ fn get_vpn_status(state: State<'_, VpnState>) -> String {
     lock.clone()
 }
 
+#[tauri::command]
+fn minimize_window(app: AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.minimize();
+    }
+}
+
+#[tauri::command]
+fn hide_window(app: AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -266,7 +280,9 @@ pub fn run() {
             start_vpn,
             stop_vpn,
             get_vpn_status,
-            exit_app
+            exit_app,
+            minimize_window,
+            hide_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
