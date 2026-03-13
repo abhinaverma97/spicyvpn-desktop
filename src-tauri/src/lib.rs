@@ -62,6 +62,12 @@ async fn fetch_sub_stats(url: String) -> Result<SubStats, String> {
 
 #[tauri::command]
 async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
+    // Kill any existing instance first
+    let mut lock = state.child.lock().unwrap();
+    if let Some(child) = lock.take() {
+        let _ = child.kill();
+    }
+
     let res = reqwest::get(&url).await.map_err(|e| e.to_string())?;
     let b64 = res.text().await.map_err(|e| e.to_string())?;
 
@@ -87,20 +93,10 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "log": { "level": "info" },
         "dns": {
             "servers": [
-                {
-                    "tag": "remote",
-                    "address": "tls://8.8.8.8",
-                    "detour": "proxy"
-                },
-                {
-                    "tag": "local",
-                    "address": "https://1.1.1.1/dns-query",
-                    "detour": "direct"
-                }
+                { "tag": "remote", "address": "tls://8.8.8.8", "detour": "proxy" },
+                { "tag": "local", "address": "https://1.1.1.1/dns-query", "detour": "direct" }
             ],
-            "rules": [
-                { "outbound": "any", "server": "local" }
-            ]
+            "rules": [ { "outbound": "any", "server": "local" } ]
         },
         "inbounds": [
             {
@@ -134,9 +130,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         ],
         "route": {
             "auto_detect_interface": true,
-            "rules": [
-                { "protocol": "dns", "outbound": "dns-out" }
-            ],
+            "rules": [ { "protocol": "dns", "outbound": "dns-out" } ],
             "final": "proxy"
         }
     });
@@ -146,14 +140,13 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let config_path = app_dir.join("sing-box.json");
     std::fs::write(&config_path, config_json.to_string()).map_err(|e| e.to_string())?;
 
-    let (mut rx, child) = app.shell()
+    let (_rx, child) = app.shell()
         .sidecar("sing-box")
         .map_err(|e| e.to_string())?
         .args(["run", "-c", config_path.to_str().unwrap()])
         .spawn()
         .map_err(|e| e.to_string())?;
 
-    let mut lock = state.child.lock().unwrap();
     *lock = Some(child);
     
     let mut status_lock = state.status.lock().unwrap();
@@ -163,7 +156,17 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
 }
 
 #[tauri::command]
-fn exit_app(app: AppHandle) {
+fn exit_app(app: AppHandle, state: State<'_, VpnState>) {
+    let mut lock = state.child.lock().unwrap();
+    if let Some(child) = lock.take() {
+        let _ = child.kill();
+    }
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/IM", "sing-box.exe", "/T"])
+            .spawn();
+    }
     app.exit(0);
 }
 
@@ -172,6 +175,12 @@ fn stop_vpn(state: State<'_, VpnState>) -> Result<(), String> {
     let mut lock = state.child.lock().unwrap();
     if let Some(child) = lock.take() {
         let _ = child.kill();
+    }
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/IM", "sing-box.exe", "/T"])
+            .spawn();
     }
     let mut status_lock = state.status.lock().unwrap();
     *status_lock = "disconnected".to_string();
@@ -200,6 +209,14 @@ pub fn run() {
             status: Mutex::new("disconnected".to_string()),
         })
         .setup(|app| {
+            // Cleanup any orphaned sing-box processes on startup
+            #[cfg(windows)]
+            {
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/F", "/IM", "sing-box.exe", "/T"])
+                    .spawn();
+            }
+
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
@@ -213,6 +230,12 @@ pub fn run() {
                         let mut lock = state.child.lock().unwrap();
                         if let Some(child) = lock.take() {
                             let _ = child.kill();
+                        }
+                        #[cfg(windows)]
+                        {
+                            let _ = std::process::Command::new("taskkill")
+                                .args(["/F", "/IM", "sing-box.exe", "/T"])
+                                .spawn();
                         }
                         app.exit(0);
                     }
