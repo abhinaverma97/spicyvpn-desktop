@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
-import { Store } from "@tauri-apps/plugin-store";
+import { load } from "@tauri-apps/plugin-store";
 import { Shield, Power, Wifi, Clock, Settings, X, Minus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Dither from "./components/Dither";
@@ -21,10 +21,10 @@ export default function App() {
   const [error, setError] = useState("");
 
   const appWindow = new Window("main");
-  const store = new Store("settings.bin");
 
   useEffect(() => {
-    async function load() {
+    async function loadSettings() {
+      const store = await load("settings.bin");
       const savedLink = await store.get<string>("subLink");
       if (savedLink) {
         setSubLink(savedLink);
@@ -38,7 +38,7 @@ export default function App() {
       const currentStatus = await invoke<string>("get_vpn_status");
       setStatus(currentStatus as any);
     }
-    load();
+    loadSettings();
   }, []);
 
   async function fetchStats(link: string) {
@@ -61,6 +61,7 @@ export default function App() {
   async function saveLink(e: React.FormEvent) {
     e.preventDefault();
     if (!subLink) return;
+    const store = await load("settings.bin");
     await store.set("subLink", subLink);
     await store.save();
     setIsEditingLink(false);
