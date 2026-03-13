@@ -86,6 +86,15 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
 
     let config_json = serde_json::json!({
         "log": { "level": "info" },
+        "dns": {
+            "servers": [
+                {
+                    "tag": "remote",
+                    "address": "8.8.8.8",
+                    "detour": "proxy"
+                }
+            ]
+        },
         "inbounds": [
             {
                 "type": "tun",
@@ -111,10 +120,14 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                     "insecure": insecure
                 }
             },
-            { "type": "direct", "tag": "direct" }
+            { "type": "direct", "tag": "direct" },
+            { "type": "dns", "tag": "dns-out" }
         ],
         "route": {
             "auto_detect_interface": true,
+            "rules": [
+                { "protocol": "dns", "outbound": "dns-out" }
+            ],
             "final": "proxy"
         }
     });

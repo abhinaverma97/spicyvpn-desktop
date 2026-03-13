@@ -191,8 +191,8 @@ export default function App() {
             >
               {/* Status Header */}
               <div className="text-center">
-                <h1 className={`text-2xl font-black tracking-tight transition-colors duration-500 ${status === 'connected' ? 'text-emerald-400' : status === 'connecting' ? 'text-amber-400' : 'text-white'}`}>
-                  {status === 'connected' ? 'Secured' : status === 'connecting' ? 'Connecting...' : 'Unprotected'}
+                <h1 className={`text-2xl font-black tracking-tight transition-colors duration-500 text-white`}>
+                  {status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : 'Unprotected'}
                 </h1>
                 <p className="text-sm text-white/40 mt-1">
                   {status === 'connected' ? 'Your traffic is encrypted & hidden' : 'VPN is currently offline'}
@@ -203,22 +203,16 @@ export default function App() {
               <button
                 onClick={toggleVpn}
                 disabled={status === 'connecting'}
-                className={`relative group w-32 h-32 rounded-3xl flex items-center justify-center transition-all duration-500 
-                  ${status === 'connected' 
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                className={`relative group w-32 h-32 rounded-3xl flex items-center justify-center transition-all duration-500
+                  ${status === 'connected'
+                    ? 'bg-white/10 border-white/30 text-white'
                     : status === 'connecting'
-                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 animate-pulse'
-                    : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white hover:border-white/20'} 
+                    ? 'bg-white/5 border-white/20 text-white/70'
+                    : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white hover:border-white/20'}
                   border-2 shadow-2xl`}
               >
-                <Power className={`w-12 h-12 transition-transform duration-300 ${status === 'connected' ? 'scale-110 drop-shadow-[0_0_15px_rgba(52,211,153,0.5)]' : 'group-hover:scale-105'}`} />
-                
-                {/* Glow ring */}
-                {status === 'connected' && (
-                  <div className="absolute inset-0 rounded-3xl border border-emerald-500/20 animate-ping" />
-                )}
+                <Power className={`w-12 h-12 transition-transform duration-300 ${status === 'connected' ? 'scale-110 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'group-hover:scale-105'}`} />
               </button>
-
               {/* Stats & Info */}
               <div className="w-full space-y-4">
                 {error ? (
