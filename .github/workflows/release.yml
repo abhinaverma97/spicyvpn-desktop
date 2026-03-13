@@ -1,0 +1,48 @@
+name: Build Windows App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Download sing-box and wintun
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/SagerNet/sing-box/releases/download/v1.9.0/sing-box-1.9.0-windows-amd64.zip" -OutFile "sing-box.zip"
+          Expand-Archive "sing-box.zip" -DestinationPath .
+          Move-Item "sing-box-1.9.0-windows-amd64\sing-box.exe" "src-tauri\sing-box-x86_64-pc-windows-msvc.exe"
+          
+          Invoke-WebRequest -Uri "https://www.wintun.net/builds/wintun-0.14.1.zip" -OutFile "wintun.zip"
+          Expand-Archive "wintun.zip" -DestinationPath .
+          Move-Item "wintun\bin\amd64\wintun.dll" "src-tauri\wintun.dll"
+
+      - name: Build Tauri app
+        run: npm run tauri build
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
