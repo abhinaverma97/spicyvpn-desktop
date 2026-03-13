@@ -4,7 +4,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { load } from "@tauri-apps/plugin-store";
 import { Power, Wifi, Clock, Settings, X, Minus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { listen } from "@tauri-apps/api/event";
 import Dither from "./components/Dither";
 
 type Stats = {
@@ -20,10 +19,6 @@ export default function App() {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState("");
-  
-  // Dialog State
-  const [showQuitDialog, setShowQuitDialog] = useState(false);
-  const [rememberQuitChoice, setRememberQuitChoice] = useState(false);
   
   const appWindow = getCurrentWindow();
 
@@ -42,42 +37,7 @@ export default function App() {
       setStatus(currentStatus as any);
     }
     loadSettings();
-    
-    const unlistenQuit = listen("show-quit-dialog", async () => {
-      const store = await load("settings.bin");
-      const quitAction = await store.get<string>("quitAction");
-      
-      if (quitAction === "quit") {
-        await invoke("stop_vpn");
-        await invoke("exit_app");
-      } else if (quitAction === "minimize") {
-        await appWindow.hide();
-      } else {
-        setShowQuitDialog(true);
-      }
-    });
-
-    return () => {
-      unlistenQuit.then((f) => f());
-    };
   }, []);
-
-  async function handleQuitDialog(action: "quit" | "minimize") {
-    if (rememberQuitChoice) {
-      const store = await load("settings.bin");
-      await store.set("quitAction", action);
-      await store.save();
-    }
-    
-    setShowQuitDialog(false);
-    
-    if (action === "quit") {
-      await invoke("stop_vpn");
-      await invoke("exit_app");
-    } else {
-      await appWindow.hide();
-    }
-  }
 
   async function fetchStats(link: String) {
     try {
@@ -173,7 +133,7 @@ export default function App() {
           <button onClick={() => appWindow.minimize()} className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-md transition-colors no-drag">
             <Minus className="w-3.5 h-3.5" />
           </button>
-          <button onClick={() => invoke("request_close")} className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors no-drag">
+          <button onClick={() => appWindow.hide()} className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors no-drag">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -289,60 +249,6 @@ export default function App() {
         </AnimatePresence>
 
       </main>
-
-      {/* Quit Dialog Overlay */}
-      <AnimatePresence>
-        {showQuitDialog && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
-          >
-            <motion.div 
-              initial={{ scale: 0.95 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.95 }}
-              className="bg-[#09090b] border border-white/10 p-5 rounded-2xl w-full max-w-sm shadow-2xl flex flex-col gap-5"
-            >
-              <div>
-                <h3 className="text-lg font-bold text-white mb-1">Close SpicyVPN?</h3>
-                <p className="text-xs text-white/50 leading-relaxed">
-                  Quitting will stop the VPN connection. You can minimize to the system tray to keep it running in the background.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 px-1">
-                <input 
-                  type="checkbox" 
-                  id="remember" 
-                  checked={rememberQuitChoice}
-                  onChange={(e) => setRememberQuitChoice(e.target.checked)}
-                  className="w-4 h-4 rounded border-white/20 bg-black accent-white"
-                />
-                <label htmlFor="remember" className="text-xs text-white/60 cursor-pointer select-none">
-                  Remember my choice
-                </label>
-              </div>
-
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => handleQuitDialog("quit")}
-                  className="flex-1 py-2 rounded-lg border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/10 transition-colors"
-                >
-                  Quit App
-                </button>
-                <button 
-                  onClick={() => handleQuitDialog("minimize")}
-                  className="flex-1 py-2 rounded-lg bg-white text-black text-xs font-semibold hover:bg-white/90 transition-colors"
-                >
-                  Minimize to Tray
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

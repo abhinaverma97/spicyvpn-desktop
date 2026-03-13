@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, State, Emitter,
+    AppHandle, Manager, State,
 };
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 use url::Url;
@@ -205,11 +205,6 @@ fn get_vpn_status(state: State<'_, VpnState>) -> String {
     lock.clone()
 }
 
-#[tauri::command]
-fn request_close(app: AppHandle) {
-    let _ = app.emit("show-quit-dialog", ());
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -271,7 +266,6 @@ pub fn run() {
             start_vpn,
             stop_vpn,
             get_vpn_status,
-            request_close,
             exit_app
         ])
         .run(tauri::generate_context!())
