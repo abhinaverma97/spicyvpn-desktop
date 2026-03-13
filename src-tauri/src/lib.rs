@@ -62,10 +62,12 @@ async fn fetch_sub_stats(url: String) -> Result<SubStats, String> {
 
 #[tauri::command]
 async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
-    // Kill any existing instance first
-    let mut lock = state.child.lock().unwrap();
-    if let Some(child) = lock.take() {
-        let _ = child.kill();
+    // Kill any existing instance first - Drop the lock immediately after taking the child
+    {
+        let mut lock = state.child.lock().unwrap();
+        if let Some(child) = lock.take() {
+            let _ = child.kill();
+        }
     }
 
     let res = reqwest::get(&url).await.map_err(|e| e.to_string())?;
@@ -147,7 +149,10 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         .spawn()
         .map_err(|e| e.to_string())?;
 
-    *lock = Some(child);
+    {
+        let mut lock = state.child.lock().unwrap();
+        *lock = Some(child);
+    }
     
     let mut status_lock = state.status.lock().unwrap();
     *status_lock = "connected".to_string();
