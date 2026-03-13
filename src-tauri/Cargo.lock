@@ -753,23 +753,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "desktopclient"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "reqwest",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-shell",
- "tauri-plugin-store",
- "url",
-]
-
-[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3831,6 +3814,23 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
+]
+
+[[package]]
+name = "spicyvpn"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-shell",
+ "tauri-plugin-store",
+ "url",
 ]
 
 [[package]]

@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    desktopclient_lib::run()
+    spicyvpn_lib::run()
 }

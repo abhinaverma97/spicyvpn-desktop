@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
 import { load } from "@tauri-apps/plugin-store";
-import { Shield, Power, Wifi, Clock, Settings, X, Minus } from "lucide-react";
+import { Power, Wifi, Clock, Settings, X, Minus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Dither from "./components/Dither";
 
@@ -131,9 +131,8 @@ export default function App() {
       <Dither />
       
       {/* Custom Titlebar */}
-      <div data-tauri-drag-region className="drag h-10 w-full flex-shrink-0 flex items-center justify-between px-4 z-50 bg-black/50 backdrop-blur-md border-b border-white/5 relative">
+      <div data-tauri-drag-region className="drag h-10 w-full flex-shrink-0 flex items-center justify-between px-4 z-50 relative">
         <div className="flex items-center gap-2 pointer-events-none">
-          <Shield className="w-4 h-4 text-white/50" />
           <span className="text-xs font-semibold tracking-wide text-white/70">SpicyVPN</span>
         </div>
         <div className="flex items-center gap-1">
