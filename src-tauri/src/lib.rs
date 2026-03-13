@@ -1,8 +1,6 @@
 use serde::Serialize;
 use std::sync::Mutex;
 use tauri::{
-    menu::{Menu, MenuItem},
-    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, State,
 };
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
@@ -212,13 +210,6 @@ fn minimize_window(app: AppHandle) {
     }
 }
 
-#[tauri::command]
-fn hide_window(app: AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.hide();
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -231,48 +222,6 @@ pub fn run() {
         })
         .setup(|app| {
             kill_orphaned_singbox();
-
-            let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
-
-            TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
-                .menu(&menu)
-                .on_menu_event(|app: &AppHandle, event| match event.id.as_ref() {
-                    "quit" => {
-                        let state = app.state::<VpnState>();
-                        {
-                            let mut lock = state.child.lock().unwrap();
-                            if let Some(child) = lock.take() {
-                                let _ = child.kill();
-                            }
-                        }
-                        kill_orphaned_singbox();
-                        app.exit(0);
-                    }
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        ..
-                    } = event
-                    {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                })
-                .build(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -281,8 +230,7 @@ pub fn run() {
             stop_vpn,
             get_vpn_status,
             exit_app,
-            minimize_window,
-            hide_window
+            minimize_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

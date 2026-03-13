@@ -130,7 +130,7 @@ export default function App() {
           <button onClick={() => invoke("minimize_window")} className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-md transition-colors no-drag">
             <Minus className="w-3.5 h-3.5" />
           </button>
-          <button onClick={() => invoke("hide_window")} className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors no-drag">
+          <button onClick={() => invoke("exit_app")} className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors no-drag">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
