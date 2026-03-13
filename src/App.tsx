@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Window } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { load } from "@tauri-apps/plugin-store";
 import { Power, Wifi, Clock, Settings, X, Minus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -25,7 +25,7 @@ export default function App() {
   const [showQuitDialog, setShowQuitDialog] = useState(false);
   const [rememberQuitChoice, setRememberQuitChoice] = useState(false);
   
-  const appWindow = new Window("main");
+  const appWindow = getCurrentWindow();
 
   useEffect(() => {
     async function loadSettings() {
@@ -51,7 +51,7 @@ export default function App() {
         await invoke("stop_vpn");
         await invoke("exit_app");
       } else if (quitAction === "minimize") {
-        appWindow.hide();
+        await appWindow.hide();
       } else {
         setShowQuitDialog(true);
       }
@@ -75,11 +75,11 @@ export default function App() {
       await invoke("stop_vpn");
       await invoke("exit_app");
     } else {
-      appWindow.hide();
+      await appWindow.hide();
     }
   }
 
-  async function fetchStats(link: string) {
+  async function fetchStats(link: String) {
     try {
       const res = await invoke<Stats>("fetch_sub_stats", { url: link });
       setStats(res);

@@ -8,6 +8,9 @@ use tauri::{
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 use url::Url;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 #[derive(Serialize)]
 struct SubStats {
     upload: u64,
@@ -19,6 +22,16 @@ struct SubStats {
 struct VpnState {
     child: Mutex<Option<CommandChild>>,
     status: Mutex<String>,
+}
+
+fn kill_orphaned_singbox() {
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/IM", "sing-box.exe", "/T"])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .spawn();
+    }
 }
 
 #[tauri::command]
@@ -62,13 +75,11 @@ async fn fetch_sub_stats(url: String) -> Result<SubStats, String> {
 
 #[tauri::command]
 async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
-    // Kill any existing instance first - Drop the lock immediately after taking the child
-    {
-        let mut lock = state.child.lock().unwrap();
-        if let Some(child) = lock.take() {
-            let _ = child.kill();
-        }
+    let mut lock = state.child.lock().unwrap();
+    if let Some(child) = lock.take() {
+        let _ = child.kill();
     }
+    kill_orphaned_singbox();
 
     let res = reqwest::get(&url).await.map_err(|e| e.to_string())?;
     let b64 = res.text().await.map_err(|e| e.to_string())?;
@@ -149,10 +160,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         .spawn()
         .map_err(|e| e.to_string())?;
 
-    {
-        let mut lock = state.child.lock().unwrap();
-        *lock = Some(child);
-    }
+    *lock = Some(child);
     
     let mut status_lock = state.status.lock().unwrap();
     *status_lock = "connected".to_string();
@@ -166,12 +174,7 @@ fn exit_app(app: AppHandle, state: State<'_, VpnState>) {
     if let Some(child) = lock.take() {
         let _ = child.kill();
     }
-    #[cfg(windows)]
-    {
-        let _ = std::process::Command::new("taskkill")
-            .args(["/F", "/IM", "sing-box.exe", "/T"])
-            .spawn();
-    }
+    kill_orphaned_singbox();
     app.exit(0);
 }
 
@@ -181,12 +184,7 @@ fn stop_vpn(state: State<'_, VpnState>) -> Result<(), String> {
     if let Some(child) = lock.take() {
         let _ = child.kill();
     }
-    #[cfg(windows)]
-    {
-        let _ = std::process::Command::new("taskkill")
-            .args(["/F", "/IM", "sing-box.exe", "/T"])
-            .spawn();
-    }
+    kill_orphaned_singbox();
     let mut status_lock = state.status.lock().unwrap();
     *status_lock = "disconnected".to_string();
     Ok(())
@@ -214,13 +212,7 @@ pub fn run() {
             status: Mutex::new("disconnected".to_string()),
         })
         .setup(|app| {
-            // Cleanup any orphaned sing-box processes on startup
-            #[cfg(windows)]
-            {
-                let _ = std::process::Command::new("taskkill")
-                    .args(["/F", "/IM", "sing-box.exe", "/T"])
-                    .spawn();
-            }
+            kill_orphaned_singbox();
 
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
@@ -236,12 +228,7 @@ pub fn run() {
                         if let Some(child) = lock.take() {
                             let _ = child.kill();
                         }
-                        #[cfg(windows)]
-                        {
-                            let _ = std::process::Command::new("taskkill")
-                                .args(["/F", "/IM", "sing-box.exe", "/T"])
-                                .spawn();
-                        }
+                        kill_orphaned_singbox();
                         app.exit(0);
                     }
                     "show" => {
