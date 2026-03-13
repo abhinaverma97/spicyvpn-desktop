@@ -75,11 +75,13 @@ async fn fetch_sub_stats(url: String) -> Result<SubStats, String> {
 
 #[tauri::command]
 async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
-    let mut lock = state.child.lock().unwrap();
-    if let Some(child) = lock.take() {
-        let _ = child.kill();
+    {
+        let mut lock = state.child.lock().unwrap();
+        if let Some(child) = lock.take() {
+            let _ = child.kill();
+        }
+        kill_orphaned_singbox();
     }
-    kill_orphaned_singbox();
 
     let res = reqwest::get(&url).await.map_err(|e| e.to_string())?;
     let b64 = res.text().await.map_err(|e| e.to_string())?;
@@ -160,7 +162,10 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         .spawn()
         .map_err(|e| e.to_string())?;
 
-    *lock = Some(child);
+    {
+        let mut lock = state.child.lock().unwrap();
+        *lock = Some(child);
+    }
     
     let mut status_lock = state.status.lock().unwrap();
     *status_lock = "connected".to_string();
@@ -170,9 +175,11 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
 
 #[tauri::command]
 fn exit_app(app: AppHandle, state: State<'_, VpnState>) {
-    let mut lock = state.child.lock().unwrap();
-    if let Some(child) = lock.take() {
-        let _ = child.kill();
+    {
+        let mut lock = state.child.lock().unwrap();
+        if let Some(child) = lock.take() {
+            let _ = child.kill();
+        }
     }
     kill_orphaned_singbox();
     app.exit(0);
@@ -180,9 +187,11 @@ fn exit_app(app: AppHandle, state: State<'_, VpnState>) {
 
 #[tauri::command]
 fn stop_vpn(state: State<'_, VpnState>) -> Result<(), String> {
-    let mut lock = state.child.lock().unwrap();
-    if let Some(child) = lock.take() {
-        let _ = child.kill();
+    {
+        let mut lock = state.child.lock().unwrap();
+        if let Some(child) = lock.take() {
+            let _ = child.kill();
+        }
     }
     kill_orphaned_singbox();
     let mut status_lock = state.status.lock().unwrap();
@@ -224,9 +233,11 @@ pub fn run() {
                 .on_menu_event(|app: &AppHandle, event| match event.id.as_ref() {
                     "quit" => {
                         let state = app.state::<VpnState>();
-                        let mut lock = state.child.lock().unwrap();
-                        if let Some(child) = lock.take() {
-                            let _ = child.kill();
+                        {
+                            let mut lock = state.child.lock().unwrap();
+                            if let Some(child) = lock.take() {
+                                let _ = child.kill();
+                            }
                         }
                         kill_orphaned_singbox();
                         app.exit(0);
