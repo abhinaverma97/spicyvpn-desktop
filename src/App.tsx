@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
 import { load } from "@tauri-apps/plugin-store";
-import { Power, Wifi, Clock, Settings, X, Minus, TerminalSquare } from "lucide-react";
+import { Power, Wifi, Clock, Settings, X, Minus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { listen } from "@tauri-apps/api/event";
 import Dither from "./components/Dither";
@@ -21,14 +21,10 @@ export default function App() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState("");
   
-  // Logs & Dialog State
-  const [logs, setLogs] = useState<string[]>([]);
-  const [showLogs, setShowLogs] = useState(false);
+  // Dialog State
   const [showQuitDialog, setShowQuitDialog] = useState(false);
   const [rememberQuitChoice, setRememberQuitChoice] = useState(false);
   
-  const logsEndRef = useRef<HTMLDivElement>(null);
-
   const appWindow = new Window("main");
 
   useEffect(() => {
@@ -37,30 +33,23 @@ export default function App() {
       const savedLink = await store.get<string>("subLink");
       if (savedLink) {
         setSubLink(savedLink);
-        // Pre-fetch stats
         fetchStats(savedLink);
       } else {
         setIsEditingLink(true);
       }
 
-      // Check current VPN status from rust
       const currentStatus = await invoke<string>("get_vpn_status");
       setStatus(currentStatus as any);
     }
     loadSettings();
-    
-    const unlistenLog = listen<string>("vpn-log", (event) => {
-      setLogs((prev) => [...prev.slice(-99), event.payload]);
-      if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
-    });
     
     const unlistenQuit = listen("show-quit-dialog", async () => {
       const store = await load("settings.bin");
       const quitAction = await store.get<string>("quitAction");
       
       if (quitAction === "quit") {
-        invoke("stop_vpn");
-        appWindow.close();
+        await invoke("stop_vpn");
+        await invoke("exit_app");
       } else if (quitAction === "minimize") {
         appWindow.hide();
       } else {
@@ -69,7 +58,6 @@ export default function App() {
     });
 
     return () => {
-      unlistenLog.then((f) => f());
       unlistenQuit.then((f) => f());
     };
   }, []);
@@ -85,7 +73,7 @@ export default function App() {
     
     if (action === "quit") {
       await invoke("stop_vpn");
-      appWindow.close();
+      await invoke("exit_app");
     } else {
       appWindow.hide();
     }
@@ -100,7 +88,6 @@ export default function App() {
       console.error(e);
       setError(e.toString());
       if (e.toString().includes("403") || e.toString().includes("404")) {
-         // Auto disconnect if connected
          if (status === "connected") {
            await disconnect();
          }
@@ -140,11 +127,8 @@ export default function App() {
     setStatus("connecting");
     setError("");
     try {
-      // Re-fetch latest stats and server details before connecting
       const latestStats = await invoke<Stats>("fetch_sub_stats", { url: subLink });
       setStats(latestStats);
-
-      // Tell rust to generate config and run sing-box
       await invoke("start_vpn", { url: subLink });
       setStatus("connected");
     } catch (e: any) {
@@ -177,7 +161,7 @@ export default function App() {
   const usedPct = stats && stats.total > 0 ? (usedBytes / stats.total) * 100 : 0;
 
   return (
-    <div className="relative w-full h-screen bg-[#09090b] text-white flex flex-col overflow-hidden border border-white/10 rounded-xl">
+    <div className="relative w-full h-screen bg-[#09090b] text-white flex flex-col overflow-hidden">
       <Dither />
       
       {/* Custom Titlebar */}
@@ -197,14 +181,6 @@ export default function App() {
 
       <main className="relative flex-1 flex flex-col items-center justify-center p-6 z-10 w-full h-full">
         
-        <button 
-          onClick={() => setShowLogs(true)} 
-          className="absolute bottom-4 right-4 p-2 text-white/30 hover:text-white/80 bg-white/5 hover:bg-white/10 rounded-lg transition-colors z-50"
-          title="View Logs"
-        >
-          <TerminalSquare className="w-4 h-4" />
-        </button>
-
         <AnimatePresence mode="wait">
           {isEditingLink ? (
             <motion.form 
@@ -313,31 +289,6 @@ export default function App() {
         </AnimatePresence>
 
       </main>
-
-      {/* Logs Overlay */}
-      <AnimatePresence>
-        {showLogs && (
-          <motion.div
-            initial={{ opacity: 0, y: "100%" }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: "100%" }}
-            className="absolute inset-0 z-[60] bg-[#09090b] flex flex-col"
-          >
-            <div className="h-10 border-b border-white/10 flex items-center justify-between px-4 bg-black/50">
-              <span className="text-xs font-semibold text-white/70">Connection Logs</span>
-              <button onClick={() => setShowLogs(false)} className="p-1 text-white/50 hover:text-white rounded">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 text-[10px] font-mono text-white/60 space-y-1">
-              {logs.map((log, i) => (
-                <div key={i} className="break-words">{log}</div>
-              ))}
-              <div ref={logsEndRef} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Quit Dialog Overlay */}
       <AnimatePresence>

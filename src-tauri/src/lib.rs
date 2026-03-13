@@ -159,18 +159,12 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let mut status_lock = state.status.lock().unwrap();
     *status_lock = "connected".to_string();
 
-    let app_clone = app.clone();
-    tauri::async_runtime::spawn(async move {
-        while let Some(event) = rx.recv().await {
-            if let tauri_plugin_shell::process::CommandEvent::Stdout(line) = event {
-                let _ = app_clone.emit("vpn-log", String::from_utf8_lossy(&line).to_string());
-            } else if let tauri_plugin_shell::process::CommandEvent::Stderr(line) = event {
-                let _ = app_clone.emit("vpn-log", String::from_utf8_lossy(&line).to_string());
-            }
-        }
-    });
-
     Ok(())
+}
+
+#[tauri::command]
+fn exit_app(app: AppHandle) {
+    app.exit(0);
 }
 
 #[tauri::command]
@@ -251,7 +245,8 @@ pub fn run() {
             start_vpn,
             stop_vpn,
             get_vpn_status,
-            request_close
+            request_close,
+            exit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
