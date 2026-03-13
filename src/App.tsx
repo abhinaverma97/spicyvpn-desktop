@@ -61,11 +61,16 @@ export default function App() {
   async function saveLink(e: React.FormEvent) {
     e.preventDefault();
     if (!subLink) return;
-    const store = await load("settings.bin");
-    await store.set("subLink", subLink);
-    await store.save();
-    setIsEditingLink(false);
-    fetchStats(subLink);
+    try {
+      const store = await load("settings.bin");
+      await store.set("subLink", subLink);
+      await store.save();
+      setIsEditingLink(false);
+      fetchStats(subLink);
+    } catch (err: any) {
+      console.error("Save error", err);
+      setError("Failed to save settings: " + err.toString());
+    }
   }
 
   async function toggleVpn() {
@@ -141,7 +146,7 @@ export default function App() {
         </div>
       </div>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-6 z-10">
+      <main className="relative flex-1 flex flex-col items-center justify-center p-6 z-10 w-full h-full">
         
         <AnimatePresence mode="wait">
           {isEditingLink ? (
@@ -150,7 +155,7 @@ export default function App() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="w-full flex flex-col gap-4"
+              className="w-full flex flex-col gap-4 relative z-20"
               onSubmit={saveLink}
             >
               <div className="text-center mb-2">
@@ -165,9 +170,14 @@ export default function App() {
                 className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-sm outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
                 autoFocus
               />
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg text-center break-words">
+                  {error}
+                </div>
+              )}
               <button 
                 type="submit" 
-                className="w-full bg-white text-black font-semibold rounded-lg py-3 text-sm hover:bg-white/90 transition-colors"
+                className="w-full cursor-pointer pointer-events-auto bg-white text-black font-semibold rounded-lg py-3 text-sm hover:bg-white/90 transition-colors"
               >
                 Save & Continue
               </button>
