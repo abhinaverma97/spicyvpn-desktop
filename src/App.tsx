@@ -111,7 +111,7 @@ export default function App() {
 
   function daysLeft(expiresAt: number) {
     const diff = expiresAt * 1000 - Date.now();
-    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
   }
 
   const usedBytes = stats ? (stats.upload + stats.download) : 0;
