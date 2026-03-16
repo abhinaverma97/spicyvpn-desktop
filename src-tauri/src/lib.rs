@@ -1,7 +1,9 @@
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use std::sync::Mutex;
 use tauri::{
     AppHandle, Manager, State,
+    menu::{Menu, MenuItem},
+    tray::{TrayIconBuilder, MouseButton, MouseButtonState},
 };
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 use url::Url;
@@ -120,6 +122,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "auto_route": true,
                 "strict_route": true,
                 "stack": "gvisor",
+                "mtu": 1350,
                 "sniff": true
             }
         ],
@@ -184,6 +187,13 @@ fn exit_app(app: AppHandle, state: State<'_, VpnState>) {
 }
 
 #[tauri::command]
+fn hide_window(app: AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
+    }
+}
+
+#[tauri::command]
 fn stop_vpn(state: State<'_, VpnState>) -> Result<(), String> {
     {
         let mut lock = state.child.lock().unwrap();
@@ -222,6 +232,45 @@ pub fn run() {
         })
         .setup(|app| {
             kill_orphaned_singbox();
+
+            let quit_i = MenuItem::with_id(app, "quit", "Quit SpicyVPN", true, None::<&str>)?;
+            let show_i = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "quit" => {
+                        let state: State<VpnState> = app.state();
+                        {
+                            let mut lock = state.child.lock().unwrap();
+                            if let Some(child) = lock.take() {
+                                let _ = child.kill();
+                            }
+                        }
+                        kill_orphaned_singbox();
+                        app.exit(0);
+                    }
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if event.click_type == MouseButtonState::Down && event.button == MouseButton::Left {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -230,6 +279,7 @@ pub fn run() {
             stop_vpn,
             get_vpn_status,
             exit_app,
+            hide_window,
             minimize_window
         ])
         .run(tauri::generate_context!())
