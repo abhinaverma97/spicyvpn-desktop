@@ -264,7 +264,7 @@ export default function App() {
               {/* Main Toggle Button */}
               <button
                 onClick={toggleVpn}
-                disabled={status === 'connecting' || isExpired || isOutOfData}
+                disabled={status === 'connecting' || !!isExpired || !!isOutOfData}
                 className={`relative group w-32 h-32 rounded-3xl flex items-center justify-center transition-all duration-500
                   ${status === 'connected'
                     ? 'bg-white/10 border-white/30 text-white'
