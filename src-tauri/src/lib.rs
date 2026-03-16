@@ -1,9 +1,9 @@
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 use std::sync::Mutex;
 use tauri::{
     AppHandle, Manager, State,
     menu::{Menu, MenuItem},
-    tray::{TrayIconBuilder, MouseButton, MouseButtonState},
+    tray::{TrayIconBuilder, MouseButton, MouseButtonState, TrayIconEvent},
 };
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 use url::Url;
@@ -261,7 +261,12 @@ pub fn run() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if event.click_type == MouseButtonState::Down && event.button == MouseButton::Left {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Down,
+                        ..
+                    } = event
+                    {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
