@@ -1,9 +1,9 @@
 use serde::Serialize;
 use std::sync::Mutex;
 use tauri::{
-    AppHandle, Manager, State,
     menu::{Menu, MenuItem},
-    tray::{TrayIconBuilder, MouseButton, MouseButtonState, TrayIconEvent},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager, State,
 };
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 use url::Url;
@@ -86,22 +86,28 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let res = reqwest::get(&url).await.map_err(|e| e.to_string())?;
     let b64 = res.text().await.map_err(|e| e.to_string())?;
 
-    use base64::{Engine as _, engine::general_purpose};
-    let decoded = general_purpose::STANDARD.decode(b64.trim()).map_err(|e| format!("Base64 Error: {}", e))?;
+    use base64::{engine::general_purpose, Engine as _};
+    let decoded = general_purpose::STANDARD
+        .decode(b64.trim())
+        .map_err(|e| format!("Base64 Error: {}", e))?;
     let uri = String::from_utf8(decoded).map_err(|e| e.to_string())?;
 
     let parsed_url = Url::parse(&uri).map_err(|e| format!("Invalid URI format: {}", e))?;
-    
+
     let uuid = parsed_url.username();
     let host = parsed_url.host_str().unwrap_or("140.245.13.64");
     let port = parsed_url.port().unwrap_or(8443);
-    
+
     let mut sni = String::new();
     let mut insecure = false;
 
     for (k, v) in parsed_url.query_pairs() {
-        if k == "sni" { sni = v.to_string(); }
-        if k == "insecure" && v == "1" { insecure = true; }
+        if k == "sni" {
+            sni = v.to_string();
+        }
+        if k == "insecure" && v == "1" {
+            insecure = true;
+        }
     }
 
     let config_json = serde_json::json!({
@@ -151,12 +157,16 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         }
     });
 
-    let app_dir = app.path().app_data_dir().map_err(|_| "Failed to get app dir".to_string())?;
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| "Failed to get app dir".to_string())?;
     std::fs::create_dir_all(&app_dir).unwrap_or_default();
     let config_path = app_dir.join("sing-box.json");
     std::fs::write(&config_path, config_json.to_string()).map_err(|e| e.to_string())?;
 
-    let (_rx, child) = app.shell()
+    let (_rx, child) = app
+        .shell()
         .sidecar("sing-box")
         .map_err(|e| e.to_string())?
         .args(["run", "-c", config_path.to_str().unwrap()])
@@ -167,7 +177,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         let mut lock = state.child.lock().unwrap();
         *lock = Some(child);
     }
-    
+
     let mut status_lock = state.status.lock().unwrap();
     *status_lock = "connected".to_string();
 
@@ -223,6 +233,13 @@ fn minimize_window(app: AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
