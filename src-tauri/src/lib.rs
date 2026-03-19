@@ -74,7 +74,7 @@ async fn fetch_sub_stats(url: String) -> Result<SubStats, String> {
 }
 
 #[tauri::command]
-async fn start_vpn(url: String, gaming_mode: bool, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
+async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
     {
         let mut lock = state.child.lock().unwrap();
         if let Some(child) = lock.take() {
@@ -96,15 +96,7 @@ async fn start_vpn(url: String, gaming_mode: bool, app: AppHandle, state: State<
 
     let uuid = parsed_url.username();
     let host = parsed_url.host_str().unwrap_or("140.245.13.64");
-    let mut port = parsed_url.port().unwrap_or(8443);
-    let mut up_mbps = 100;
-    let mut down_mbps = 100;
-
-    if gaming_mode {
-        port = 8444;
-        up_mbps = 2;
-        down_mbps = 2;
-    }
+    let port = parsed_url.port().unwrap_or(8443);
 
     let mut sni = String::new();
     let mut insecure = false;
@@ -147,8 +139,8 @@ async fn start_vpn(url: String, gaming_mode: bool, app: AppHandle, state: State<
                 "server": host,
                 "server_port": port,
                 "password": uuid,
-                "up_mbps": up_mbps,
-                "down_mbps": down_mbps,
+                "up_mbps": 100,
+                "down_mbps": 100,
                 "tls": {
                     "enabled": true,
                     "server_name": sni,

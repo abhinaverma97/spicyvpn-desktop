@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { load } from "@tauri-apps/plugin-store";
-import { Power, Wifi, Clock, Settings, X, Minus, LogOut, RotateCcw, AlertTriangle, Gamepad2 } from "lucide-react";
+import { Power, Wifi, Clock, Settings, X, Minus, LogOut, RotateCcw, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Dither from "./components/Dither";
 
@@ -20,7 +20,6 @@ export default function App() {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState("");
-  const [gamingMode, setGamingMode] = useState(false);
   
   // Close behavior states
   const [showCloseModal, setShowCloseModal] = useState(false);
@@ -32,10 +31,8 @@ export default function App() {
       const store = await load("settings.bin");
       const savedLink = await store.get<string>("subLink");
       const pref = await store.get<CloseAction>("closePreference");
-      const savedGamingMode = await store.get<boolean>("gamingMode");
       
       setClosePreference(pref || null);
-      if (typeof savedGamingMode === "boolean") setGamingMode(savedGamingMode);
 
       if (savedLink) {
         setSubLink(savedLink);
@@ -97,22 +94,6 @@ export default function App() {
     }
   }
 
-  async function toggleGamingMode() {
-    const newMode = !gamingMode;
-    try {
-      const store = await load("settings.bin");
-      await store.set("gamingMode", newMode);
-      await store.save();
-      setGamingMode(newMode);
-      if (status === "connected") {
-        await disconnect();
-        // Optional: Could auto-reconnect here, but let's let the user initiate it to see the state change cleanly.
-      }
-    } catch (err: any) {
-      console.error("Failed to save gaming mode", err);
-    }
-  }
-
   async function toggleVpn() {
     if (!subLink) {
       setIsEditingLink(true);
@@ -141,7 +122,7 @@ export default function App() {
       if (isExpired) throw new Error("Subscription has expired");
       if (isOutOfData) throw new Error("Data limit reached");
 
-      await invoke("start_vpn", { url: subLink, gamingMode });
+      await invoke("start_vpn", { url: subLink });
       setStatus("connected");
     } catch (e: any) {
       setError(e.toString());
@@ -327,12 +308,6 @@ export default function App() {
                         {stats ? `${daysLeft(stats.expire)} days left` : '--'}
                       </span>
                       <div className="flex gap-4">
-                        <button 
-                          onClick={toggleGamingMode}
-                          className={`flex items-center gap-1 transition-colors ${gamingMode ? 'text-emerald-400' : 'hover:text-white'}`}
-                        >
-                          <Gamepad2 className="w-3 h-3" /> Gaming
-                        </button>
                         <button 
                           onClick={() => setIsEditingLink(true)}
                           className="flex items-center gap-1 hover:text-white transition-colors"
