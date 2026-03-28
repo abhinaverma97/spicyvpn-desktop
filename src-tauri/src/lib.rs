@@ -125,11 +125,10 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "log": { "level": "info" },
         "dns": {
             "servers": [
-                { "tag": "dns-direct", "address": "8.8.8.8", "detour": "direct" },
-                { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" }
+                { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" },
+                { "tag": "dns-direct", "address": "8.8.8.8", "detour": "direct" }
             ],
             "rules": [ 
-                { "domain_suffix": ["vivox.com", "discord.media", "discord.gg"], "server": "dns-direct" },
                 { "outbound": "any", "server": "dns-remote" } 
             ],
             "final": "dns-remote"
