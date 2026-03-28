@@ -186,9 +186,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 // Game Domains Bypass (Voice Chat Only)
                 {
                     "domain_suffix": [
-                        "vivox.com",
-                        "discord.media",
-                        "discord.gg"
+                        "vivox.com"
                     ],
                     "outbound": "direct"
                 },
