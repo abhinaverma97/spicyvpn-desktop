@@ -205,7 +205,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let config_path = app_dir.join("sing-box.json");
     std::fs::write(&config_path, config_json.to_string()).map_err(|e| e.to_string())?;
 
-    let (_rx, child) = app
+    let (mut rx, child) = app
         .shell()
         .sidecar("sing-box")
         .map_err(|e| e.to_string())?
@@ -220,6 +220,32 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
 
     let mut status_lock = state.status.lock().unwrap();
     *status_lock = "connected".to_string();
+
+    let app_clone = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            match event {
+                tauri_plugin_shell::process::CommandEvent::Terminated(_) => {
+                    let state = app_clone.state::<VpnState>();
+                    let mut lock = state.status.lock().unwrap();
+                    if *lock == "connected" {
+                        *lock = "disconnected".to_string();
+                    }
+                    break;
+                }
+                tauri_plugin_shell::process::CommandEvent::Error(err) => {
+                    println!("sing-box error: {}", err);
+                    let state = app_clone.state::<VpnState>();
+                    let mut lock = state.status.lock().unwrap();
+                    if *lock == "connected" {
+                        *lock = "disconnected".to_string();
+                    }
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
 
     Ok(())
 }
