@@ -145,7 +145,6 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "server_port": port,
                 "uuid": uuid,
                 "flow": if flow.is_empty() { "xtls-rprx-vision" } else { &flow },
-                "packet_encoding": "xudp",
                 "tls": {
                     "enabled": true,
                     "server_name": sni,
