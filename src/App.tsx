@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { load } from "@tauri-apps/plugin-store";
-import { Power, Wifi, Clock, Settings, X, Minus, LogOut, RotateCcw, AlertTriangle, ScrollText } from "lucide-react";
+import { Power, Wifi, Clock, Settings, X, Minus, LogOut, RotateCcw, AlertTriangle, ScrollText, Copy } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Dither from "./components/Dither";
 
@@ -162,6 +162,15 @@ export default function App() {
     }
   }
 
+  function copyLogs() {
+    const logText = logs.join("");
+    navigator.clipboard.writeText(logText).then(() => {
+      // Optional: show a tiny toast or just let the user know
+    }).catch(err => {
+      console.error("Failed to copy logs:", err);
+    });
+  }
+
   async function executeCloseAction(action: "quit" | "hide") {
     if (rememberCloseChoice) {
       const store = await load("settings.bin");
@@ -219,7 +228,10 @@ export default function App() {
           <div className="w-full h-full flex flex-col pt-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold flex items-center gap-2"><ScrollText className="w-5 h-5" /> Connection Logs</h2>
-              <button onClick={() => setShowLogs(false)} className="text-xs text-white/40 hover:text-white px-3 py-1 bg-white/5 rounded-md transition-colors">Back</button>
+              <div className="flex items-center gap-2">
+                <button onClick={copyLogs} className="text-xs flex items-center gap-1 text-white/40 hover:text-white px-3 py-1 bg-white/5 rounded-md transition-colors"><Copy className="w-3 h-3"/> Copy</button>
+                <button onClick={() => setShowLogs(false)} className="text-xs text-white/40 hover:text-white px-3 py-1 bg-white/5 rounded-md transition-colors">Back</button>
+              </div>
             </div>
             <div className="flex-1 bg-black/50 border border-white/10 rounded-lg p-4 font-mono text-[10px] text-emerald-400/80 overflow-y-auto whitespace-pre-wrap flex flex-col justify-end">
               {logs.length === 0 ? "No logs yet..." : logs.join("")}

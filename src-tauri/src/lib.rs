@@ -138,8 +138,8 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "inet4_address": "172.19.0.1/30",
                 "auto_route": true,
                 "strict_route": true,
-                "stack": "system", // System stack is better for gaming latency than gvisor
-                "mtu": 1350,       // Crucial MTU setting for fragmentation
+                "stack": "gvisor", // Reverted to gvisor to avoid Windows Firewall Admin requirement
+                "mtu": 1350,       
                 "sniff": true,
                 "sniff_override_destination": true
             }
