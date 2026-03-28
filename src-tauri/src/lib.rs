@@ -125,8 +125,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "log": { "level": "info" },
         "dns": {
             "servers": [
-                { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" },
-                { "tag": "dns-direct", "address": "8.8.8.8", "detour": "direct" }
+                { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" }
             ],
             "rules": [ 
                 { "outbound": "any", "server": "dns-remote" } 
@@ -177,8 +176,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "route": {
             "auto_detect_interface": true,
             "rules": [
-                { "protocol": "dns", "outbound": "dns-out" },
-                { "ip_is_private": true, "outbound": "direct" }
+                { "protocol": "dns", "outbound": "dns-out" }
             ],
             "final": "proxy"
         }
