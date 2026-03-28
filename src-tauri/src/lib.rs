@@ -96,17 +96,21 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
 
     let uuid = parsed_url.username();
     let host = parsed_url.host_str().unwrap_or("140.245.13.64");
-    let port = parsed_url.port().unwrap_or(8443);
+    let port = parsed_url.port().unwrap_or(443);
 
     let mut sni = String::new();
-    let mut insecure = false;
-
+    let mut pbk = String::new();
+    let mut sid = String::new();
+    let mut flow = String::new();
+    
+    // Parse VLESS parameters
     for (k, v) in parsed_url.query_pairs() {
-        if k == "sni" {
-            sni = v.to_string();
-        }
-        if k == "insecure" && v == "1" {
-            insecure = true;
+        match k.as_ref() {
+            "sni" => sni = v.to_string(),
+            "pbk" => pbk = v.to_string(),
+            "sid" => sid = v.to_string(),
+            "flow" => flow = v.to_string(),
+            _ => {}
         }
     }
 
@@ -127,24 +131,33 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "inet4_address": "172.19.0.1/30",
                 "auto_route": true,
                 "strict_route": true,
-                "stack": "gvisor",
-                "mtu": 1350,
-                "sniff": true
+                "stack": "system", // System stack is better for gaming latency than gvisor
+                "mtu": 1350,       // Crucial MTU setting for fragmentation
+                "sniff": true,
+                "sniff_override_destination": true
             }
         ],
         "outbounds": [
             {
-                "type": "hysteria2",
+                "type": "vless",
                 "tag": "proxy",
                 "server": host,
                 "server_port": port,
-                "password": uuid,
-                "up_mbps": 100,
-                "down_mbps": 100,
+                "uuid": uuid,
+                "flow": if flow.is_empty() { "xtls-rprx-vision" } else { &flow },
+                "packet_encoding": "xudp",
                 "tls": {
                     "enabled": true,
                     "server_name": sni,
-                    "insecure": insecure
+                    "utls": {
+                        "enabled": true,
+                        "fingerprint": "chrome"
+                    },
+                    "reality": {
+                        "enabled": true,
+                        "public_key": pbk,
+                        "short_id": sid
+                    }
                 }
             },
             { "type": "direct", "tag": "direct" },
@@ -152,7 +165,35 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         ],
         "route": {
             "auto_detect_interface": true,
-            "rules": [ { "protocol": "dns", "outbound": "dns-out" } ],
+            "rules": [
+                { "protocol": "dns", "outbound": "dns-out" },
+                { "ip_is_private": true, "outbound": "direct" },
+                // The Holy Grail: Discord Voice CIDR Bypass
+                {
+                    "ip_cidr": [
+                        "66.22.0.0/16",
+                        "162.159.128.0/20",
+                        "85.236.96.0/21"
+                    ],
+                    "outbound": "direct"
+                },
+                // Game Domains Bypass
+                {
+                    "domain_suffix": [
+                        "vivox.com",
+                        "discord.media",
+                        "discord.gg",
+                        "riotgames.com"
+                    ],
+                    "outbound": "direct"
+                },
+                // Universal UDP Bypass (Fallback)
+                {
+                    "network": "udp",
+                    "port_range": "10000-65000",
+                    "outbound": "direct"
+                }
+            ],
             "final": "proxy"
         }
     });
