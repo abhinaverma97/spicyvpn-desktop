@@ -176,12 +176,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             "auto_detect_interface": true,
             "rules": [
                 { "protocol": "dns", "outbound": "dns-out" },
-                { "ip_is_private": true, "outbound": "direct" },
-                // Universal UDP Bypass (Fallback)
-                {
-                    "network": "udp",
-                    "outbound": "direct"
-                }
+                { "ip_is_private": true, "outbound": "direct" }
             ],
             "final": "proxy"
         }
