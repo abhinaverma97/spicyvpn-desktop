@@ -173,28 +173,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             "auto_detect_interface": true,
             "rules": [
                 { "protocol": "dns", "outbound": "dns-out" },
-                { "ip_is_private": true, "outbound": "direct" },
-                // The Holy Grail: Discord Voice CIDR Bypass
-                {
-                    "ip_cidr": [
-                        "66.22.0.0/16",
-                        "162.159.128.0/20",
-                        "85.236.96.0/21"
-                    ],
-                    "outbound": "direct"
-                },
-                // Game Domains Bypass (Voice Chat Only)
-                {
-                    "domain_suffix": [
-                        "vivox.com"
-                    ],
-                    "outbound": "direct"
-                },
-                // Universal UDP Bypass (Fallback)
-                {
-                    "network": "udp",
-                    "outbound": "direct"
-                }
+                { "ip_is_private": true, "outbound": "direct" }
             ],
             "final": "proxy"
         }
