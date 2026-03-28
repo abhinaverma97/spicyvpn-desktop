@@ -130,7 +130,8 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             "rules": [ 
                 { "outbound": "any", "server": "dns-remote" } 
             ],
-            "final": "dns-remote"
+            "final": "dns-remote",
+            "strategy": "prefer_ipv4"
         },
         "inbounds": [
             {
@@ -156,6 +157,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "uuid": uuid,
                 "flow": if flow.is_empty() { "xtls-rprx-vision" } else { &flow },
                 "packet_encoding": "xudp",
+                "domain_strategy": "prefer_ipv4",
                 "tls": {
                     "enabled": true,
                     "server_name": sni,
