@@ -141,7 +141,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "inet4_address": "172.19.0.1/30",
                 "auto_route": true,
                 "strict_route": true,
-                "stack": "gvisor", // Reverted to gvisor to avoid Windows Firewall Admin requirement
+                "stack": "gvisor", 
                 "mtu": 1350,       
                 "sniff": true,
                 "sniff_override_destination": true
@@ -177,12 +177,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             "rules": [
                 { "protocol": "dns", "outbound": "dns-out" },
                 { "ip_is_private": true, "outbound": "direct" },
-                {
-                    "domain_suffix": [
-                        "vivox.com"
-                    ],
-                    "outbound": "direct"
-                },
+                // Universal UDP Bypass (Fallback)
                 {
                     "network": "udp",
                     "outbound": "direct"
