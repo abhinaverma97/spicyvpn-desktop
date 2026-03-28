@@ -177,7 +177,17 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             "auto_detect_interface": true,
             "rules": [
                 { "protocol": "dns", "outbound": "dns-out" },
-                { "ip_is_private": true, "outbound": "direct" }
+                { "ip_is_private": true, "outbound": "direct" },
+                {
+                    "domain_suffix": [
+                        "vivox.com"
+                    ],
+                    "outbound": "direct"
+                },
+                {
+                    "network": "udp",
+                    "outbound": "direct"
+                }
             ],
             "final": "proxy"
         }
