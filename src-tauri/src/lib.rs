@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, State,
+    AppHandle, Manager, State, Emitter,
 };
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 use url::Url;
