@@ -22,6 +22,7 @@ struct SubStats {
 struct VpnState {
     child: Mutex<Option<CommandChild>>,
     status: Mutex<String>,
+    logs: Mutex<String>,
 }
 
 fn kill_orphaned_singbox() {
@@ -81,6 +82,12 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             let _ = child.kill();
         }
         kill_orphaned_singbox();
+    }
+    
+    // Clear old logs
+    {
+        let mut log_lock = state.logs.lock().unwrap();
+        *log_lock = String::new();
     }
 
     let res = reqwest::get(&url).await.map_err(|e| e.to_string())?;
@@ -225,20 +232,43 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
             match event {
+                tauri_plugin_shell::process::CommandEvent::Stdout(line) => {
+                    let text = String::from_utf8_lossy(&line).into_owned();
+                    let state = app_clone.state::<VpnState>();
+                    if let Ok(mut lock) = state.logs.lock() {
+                        lock.push_str(&text);
+                        lock.push('\n');
+                    }
+                    let _ = app_clone.emit("vpn-log", text);
+                }
+                tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
+                    let text = String::from_utf8_lossy(&line).into_owned();
+                    let state = app_clone.state::<VpnState>();
+                    if let Ok(mut lock) = state.logs.lock() {
+                        lock.push_str(&text);
+                        lock.push('\n');
+                    }
+                    let _ = app_clone.emit("vpn-log", text);
+                }
                 tauri_plugin_shell::process::CommandEvent::Terminated(_) => {
                     let state = app_clone.state::<VpnState>();
                     let mut lock = state.status.lock().unwrap();
                     if *lock == "connected" {
                         *lock = "disconnected".to_string();
                     }
+                    if let Ok(mut log_lock) = state.logs.lock() {
+                        log_lock.push_str("[Process Terminated]\n");
+                    }
                     break;
                 }
                 tauri_plugin_shell::process::CommandEvent::Error(err) => {
-                    println!("sing-box error: {}", err);
                     let state = app_clone.state::<VpnState>();
                     let mut lock = state.status.lock().unwrap();
                     if *lock == "connected" {
                         *lock = "disconnected".to_string();
+                    }
+                    if let Ok(mut log_lock) = state.logs.lock() {
+                        log_lock.push_str(&format!("[Process Error] {}\n", err));
                     }
                     break;
                 }
@@ -296,6 +326,12 @@ fn minimize_window(app: AppHandle) {
     }
 }
 
+#[tauri::command]
+fn get_vpn_logs(state: State<'_, VpnState>) -> String {
+    let lock = state.logs.lock().unwrap();
+    lock.clone()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -312,6 +348,7 @@ pub fn run() {
         .manage(VpnState {
             child: Mutex::new(None),
             status: Mutex::new("disconnected".to_string()),
+            logs: Mutex::new(String::new()),
         })
         .setup(|app| {
             kill_orphaned_singbox();
@@ -366,6 +403,7 @@ pub fn run() {
             start_vpn,
             stop_vpn,
             get_vpn_status,
+            get_vpn_logs,
             exit_app,
             hide_window,
             minimize_window

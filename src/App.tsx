@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { load } from "@tauri-apps/plugin-store";
-import { Power, Wifi, Clock, Settings, X, Minus, LogOut, RotateCcw, AlertTriangle } from "lucide-react";
+import { Power, Wifi, Clock, Settings, X, Minus, LogOut, RotateCcw, AlertTriangle, ScrollText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Dither from "./components/Dither";
 
@@ -20,6 +21,10 @@ export default function App() {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState("");
+  
+  // Logs state
+  const [logs, setLogs] = useState<string[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
   
   // Close behavior states
   const [showCloseModal, setShowCloseModal] = useState(false);
@@ -45,6 +50,14 @@ export default function App() {
       setStatus(currentStatus as any);
     }
     loadSettings();
+
+    const unlisten = listen<string>("vpn-log", (event) => {
+      setLogs((prev) => [...prev, event.payload].slice(-200)); // Keep last 200 lines
+    });
+
+    return () => {
+      unlisten.then(f => f());
+    };
   }, []);
 
   async function fetchStats(link: string) {
@@ -202,6 +215,17 @@ export default function App() {
 
       <main className="relative flex-1 flex flex-col items-center justify-center p-6 z-10 w-full h-full">
         
+        {showLogs ? (
+          <div className="w-full h-full flex flex-col pt-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2"><ScrollText className="w-5 h-5" /> Connection Logs</h2>
+              <button onClick={() => setShowLogs(false)} className="text-xs text-white/40 hover:text-white px-3 py-1 bg-white/5 rounded-md transition-colors">Back</button>
+            </div>
+            <div className="flex-1 bg-black/50 border border-white/10 rounded-lg p-4 font-mono text-[10px] text-emerald-400/80 overflow-y-auto whitespace-pre-wrap flex flex-col justify-end">
+              {logs.length === 0 ? "No logs yet..." : logs.join("")}
+            </div>
+          </div>
+        ) : (
         <AnimatePresence mode="wait">
           {isEditingLink ? (
             <motion.form 
@@ -309,6 +333,12 @@ export default function App() {
                       </span>
                       <div className="flex gap-4">
                         <button 
+                          onClick={() => setShowLogs(true)}
+                          className="flex items-center gap-1 hover:text-white transition-colors"
+                        >
+                          <ScrollText className="w-3 h-3" /> Logs
+                        </button>
+                        <button 
                           onClick={() => setIsEditingLink(true)}
                           className="flex items-center gap-1 hover:text-white transition-colors"
                         >
@@ -329,6 +359,7 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
+        )}
 
         {/* Close Choice Modal */}
         <AnimatePresence>
