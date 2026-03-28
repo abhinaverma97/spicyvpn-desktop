@@ -196,7 +196,6 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 // Universal UDP Bypass (Fallback)
                 {
                     "network": "udp",
-                    "port_range": "10000-65000",
                     "outbound": "direct"
                 }
             ],
