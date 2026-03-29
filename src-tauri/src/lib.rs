@@ -162,11 +162,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "tls": {
                     "enabled": true,
                     "server_name": sni,
-                    "insecure": insecure,
-                    "utls": {
-                        "enabled": true,
-                        "fingerprint": "chrome"
-                    }
+                    "insecure": insecure
                 }
             },
             { "type": "direct", "tag": "direct" },
@@ -188,7 +184,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         .app_data_dir()
         .map_err(|_| "Failed to get app dir".to_string())?;
     std::fs::create_dir_all(&app_dir).unwrap_or_default();
-    let config_path = app_dir.join("sing-box-v11.json");
+    let config_path = app_dir.join("sing-box-v12.json");
     std::fs::write(&config_path, config_json.to_string()).map_err(|e| e.to_string())?;
 
     // 5. Spawn process and monitor logs
@@ -217,7 +213,8 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 tauri_plugin_shell::process::CommandEvent::Stdout(line) => {
                     let text = String::from_utf8_lossy(&line).into_owned();
                     
-                    if text.contains("tunnel started") || text.contains("router: completed") {
+                    // Robust connection check
+                    if text.contains("sing-box started") || text.contains("tunnel started") {
                         let state = app_clone.state::<VpnState>();
                         let mut status_lock = state.status.lock().unwrap();
                         *status_lock = "connected".to_string();
