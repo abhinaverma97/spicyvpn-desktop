@@ -125,12 +125,12 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "log": { "level": "info" },
         "dns": {
             "servers": [
-                { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" },
-                { "tag": "dns-direct", "address": "8.8.8.8", "detour": "direct" }
+                { "tag": "dns-remote", "address": "1.1.1.1", "detour": "proxy" }
             ],
             "rules": [
                 { "outbound": "any", "server": "dns-remote" }
-            ]
+            ],
+            "final": "dns-remote"
         },
         "inbounds": [
             {
@@ -186,7 +186,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         .app_data_dir()
         .map_err(|_| "Failed to get app dir".to_string())?;
     std::fs::create_dir_all(&app_dir).unwrap_or_default();
-    let config_path = app_dir.join("sing-box-v4.json");
+    let config_path = app_dir.join("sing-box-v5.json");
     std::fs::write(&config_path, config_json.to_string()).map_err(|e| e.to_string())?;
 
     let (mut rx, child) = app
