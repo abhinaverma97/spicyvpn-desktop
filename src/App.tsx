@@ -22,9 +22,11 @@ export default function App() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState("");
   
+  // Logs state
   const [logs, setLogs] = useState<string[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   
+  // Close behavior states
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [rememberCloseChoice, setRememberCloseChoice] = useState(false);
   const [closePreference, setClosePreference] = useState<CloseAction>(null);
@@ -39,7 +41,7 @@ export default function App() {
 
       if (savedLink) {
         setSubLink(savedLink);
-        fetchStatsFromUri(savedLink);
+        fetchStats(savedLink);
       } else {
         setIsEditingLink(true);
       }
@@ -50,7 +52,7 @@ export default function App() {
     loadSettings();
 
     const unlistenLogs = listen<string>("vpn-log", (event) => {
-      setLogs((prev) => [...prev, event.payload].slice(-200));
+      setLogs((prev) => [...prev, event.payload].slice(-200)); // Keep last 200 lines
     });
 
     const unlistenStatus = listen<string>("vpn-status-changed", (event) => {
@@ -63,16 +65,21 @@ export default function App() {
     };
   }, []);
 
-  async function fetchStatsFromUri(uri: string) {
-    try {
-      const token = uri.split("://")[1]?.split("@")[0];
+  async function fetchStats(link: string) {
+    let targetUrl = link;
+    if (link.startsWith("hy2://") || link.startsWith("dhv2://")) {
+      const token = link.split("://")[1]?.split("@")[0];
       if (!token) return;
-      const subUrl = `https://spicypepper.app/api/sub?token=${token}`;
-      const res = await invoke<Stats>("fetch_sub_stats", { url: subUrl });
+      targetUrl = `https://spicypepper.app/api/sub?token=${token}`;
+    }
+
+    try {
+      const res = await invoke<Stats>("fetch_sub_stats", { url: targetUrl });
       setStats(res);
       setError("");
     } catch (e: any) {
-      console.error("Stats fetch error:", e);
+      console.error(e);
+      setError(e.toString());
     }
   }
 
@@ -84,14 +91,15 @@ export default function App() {
       await store.set("subLink", subLink);
       await store.save();
       setIsEditingLink(false);
-      fetchStatsFromUri(subLink);
+      fetchStats(subLink);
     } catch (err: any) {
+      console.error("Save error", err);
       setError("Failed to save settings: " + err.toString());
     }
   }
 
   async function resetConfig() {
-    if (!confirm("Are you sure you want to reset your configuration?")) return;
+    if (!confirm("Are you sure you want to reset your configuration? This will clear your subscription link.")) return;
     try {
       const store = await load("settings.bin");
       await store.delete("subLink");
@@ -124,8 +132,9 @@ export default function App() {
     setError("");
     setLogs([]);
     try {
-      await fetchStatsFromUri(subLink);
-      await invoke("start_vpn", { uri: subLink });
+      await fetchStats(subLink);
+      await invoke("start_vpn", { url: subLink });
+      // Status will be updated via 'vpn-status-changed' event
     } catch (e: any) {
       setError(e.toString());
       setStatus("disconnected");
@@ -195,7 +204,7 @@ export default function App() {
       {/* Custom Titlebar */}
       <div data-tauri-drag-region className="drag h-10 w-full flex-shrink-0 flex items-center justify-between px-4 z-50 relative">
         <div className="flex items-center gap-2 pointer-events-none">
-          <span className="text-xs font-semibold tracking-wide text-white/70 uppercase">SpicyVPN</span>
+          <span className="text-xs font-semibold tracking-wide text-white/70">SpicyVPN</span>
         </div>
         <div className="flex items-center gap-1">
           <button onClick={() => invoke("minimize_window")} className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-md transition-colors no-drag">
@@ -212,7 +221,7 @@ export default function App() {
         {showLogs ? (
           <div className="w-full h-full flex flex-col pt-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2 uppercase tracking-tight"><ScrollText className="w-5 h-5" /> Connection Logs</h2>
+              <h2 className="text-lg font-semibold flex items-center gap-2"><ScrollText className="w-5 h-5" /> Connection Logs</h2>
               <div className="flex items-center gap-2">
                 <button onClick={copyLogs} className="text-xs flex items-center gap-1 text-white/40 hover:text-white px-3 py-1 bg-white/5 rounded-md transition-colors"><Copy className="w-3 h-3"/> Copy</button>
                 <button onClick={() => setShowLogs(false)} className="text-xs text-white/40 hover:text-white px-3 py-1 bg-white/5 rounded-md transition-colors">Back</button>
@@ -234,14 +243,14 @@ export default function App() {
               onSubmit={saveLink}
             >
               <div className="text-center mb-2">
-                <h2 className="text-lg font-semibold uppercase">Setup Connection</h2>
-                <p className="text-xs text-white/40">Paste your SpicyVPN Direct URI (hy2://)</p>
+                <h2 className="text-lg font-semibold">Setup Connection</h2>
+                <p className="text-xs text-white/40">Paste your SpicyVPN subscription link</p>
               </div>
               <input
                 type="text"
                 value={subLink}
                 onChange={(e) => setSubLink(e.target.value)}
-                placeholder="hy2://token@host:port..."
+                placeholder="https://spicypepper.app/api/sub?token=..."
                 className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-sm outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
                 autoFocus
               />
@@ -252,7 +261,7 @@ export default function App() {
               )}
               <button 
                 type="submit" 
-                className="w-full cursor-pointer pointer-events-auto bg-white text-black font-semibold rounded-lg py-3 text-sm hover:bg-white/90 transition-colors uppercase tracking-widest"
+                className="w-full cursor-pointer pointer-events-auto bg-white text-black font-semibold rounded-lg py-3 text-sm hover:bg-white/90 transition-colors"
               >
                 Save & Continue
               </button>
@@ -274,11 +283,11 @@ export default function App() {
             >
               {/* Status Header */}
               <div className="text-center">
-                <h1 className={`text-2xl font-black tracking-tight transition-colors duration-500 uppercase ${isExpired || isOutOfData ? 'text-red-500' : status === 'connected' ? 'text-white' : 'text-white/40'}`}>
-                  {isExpired ? 'Expired' : isOutOfData ? 'Limit Hit' : status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : 'Disconnected'}
+                <h1 className={`text-2xl font-black tracking-tight transition-colors duration-500 ${isExpired || isOutOfData ? 'text-red-500' : status === 'connected' ? 'text-white' : 'text-white/40'}`}>
+                  {isExpired ? 'Subscription Expired' : isOutOfData ? 'Data Limit Reached' : status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : 'Unprotected'}
                 </h1>
-                <p className="text-xs text-white/40 mt-1 uppercase tracking-widest">
-                  {status === 'connected' ? 'Your traffic is secured' : 'VPN is currently offline'}
+                <p className="text-sm text-white/40 mt-1">
+                  {isExpired || isOutOfData ? 'Please renew your plan' : status === 'connected' ? 'Your traffic is encrypted & hidden' : 'VPN is currently offline'}
                 </p>
               </div>
 
@@ -310,30 +319,43 @@ export default function App() {
                   </div>
                 ) : (
                   <>
-                    {stats && (
-                      <div className="bg-black/50 border border-white/5 rounded-xl p-4">
-                        <div className="flex justify-between text-[10px] uppercase font-bold text-white/50 mb-2 tracking-widest">
-                          <span className="flex items-center gap-1.5"><Wifi className="w-3 h-3"/> Data Volume</span>
-                          <span>{`${formatBytes(usedBytes)} / ${formatBytes(stats.total)}`}</span>
-                        </div>
-                        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-1000 ${usedPct > 80 || isOutOfData ? 'bg-red-500' : 'bg-emerald-500'}`}
-                            style={{ width: `${Math.min(100, usedPct)}%` }}
-                          />
-                        </div>
+                    <div className="bg-black/50 border border-white/5 rounded-xl p-4">
+                      <div className="flex justify-between text-xs text-white/50 mb-2">
+                        <span className="flex items-center gap-1.5"><Wifi className="w-3 h-3"/> Data Usage</span>
+                        <span>{stats ? `${formatBytes(usedBytes)} / ${formatBytes(stats.total)}` : 'Loading...'}</span>
                       </div>
-                    )}
+                      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-1000 ${usedPct > 80 || isOutOfData ? 'bg-red-500' : 'bg-emerald-500'}`}
+                          style={{ width: `${Math.min(100, usedPct)}%` }}
+                        />
+                      </div>
+                    </div>
 
-                    <div className="flex items-center justify-between text-[10px] font-bold uppercase text-white/40 px-2 tracking-widest">
+                    <div className="flex items-center justify-between text-xs text-white/40 px-2">
                       <span className={`flex items-center gap-1.5 ${isExpired ? 'text-red-400' : ''}`}>
                         <Clock className="w-3 h-3" /> 
-                        {stats ? `${daysLeft(stats.expire)} days` : '--'}
+                        {stats ? `${daysLeft(stats.expire)} days left` : '--'}
                       </span>
                       <div className="flex gap-4">
-                        <button onClick={() => setShowLogs(true)} className="hover:text-white transition-colors">Logs</button>
-                        <button onClick={() => setIsEditingLink(true)} className="hover:text-white transition-colors">Config</button>
-                        <button onClick={resetConfig} className="hover:text-amber-400 transition-colors">Reset</button>
+                        <button 
+                          onClick={() => setShowLogs(true)}
+                          className="flex items-center gap-1 hover:text-white transition-colors"
+                        >
+                          <ScrollText className="w-3 h-3" /> Logs
+                        </button>
+                        <button 
+                          onClick={() => setIsEditingLink(true)}
+                          className="flex items-center gap-1 hover:text-white transition-colors"
+                        >
+                          <Settings className="w-3 h-3" /> Config
+                        </button>
+                        <button 
+                          onClick={resetConfig}
+                          className="flex items-center gap-1 hover:text-amber-400 transition-colors"
+                        >
+                          <RotateCcw className="w-3 h-3" /> Reset
+                        </button>
                       </div>
                     </div>
                   </>
@@ -359,8 +381,8 @@ export default function App() {
                 animate={{ scale: 1, y: 0 }}
                 className="bg-[#0c0c0e] border border-white/10 rounded-2xl p-6 w-full max-w-xs shadow-2xl"
               >
-                <h3 className="text-lg font-bold mb-2 uppercase">Exit SpicyVPN?</h3>
-                <p className="text-xs text-white/40 mb-6 leading-relaxed">Choose how you want to handle the application.</p>
+                <h3 className="text-lg font-bold mb-2">Close SpicyVPN?</h3>
+                <p className="text-xs text-white/40 mb-6 leading-relaxed">Choose how you want to handle the application when clicking the close button.</p>
                 
                 <div className="space-y-2">
                   <button 
@@ -368,14 +390,14 @@ export default function App() {
                     className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl py-3 text-sm font-semibold transition-colors flex flex-col items-center"
                   >
                     <span>Minimize to Tray</span>
-                    <span className="text-[10px] opacity-40 font-normal uppercase">Keep connection active</span>
+                    <span className="text-[10px] opacity-40 font-normal">VPN stays connected</span>
                   </button>
                   <button 
                     onClick={() => executeCloseAction("quit")}
                     className="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-xl py-3 text-sm font-semibold transition-colors flex flex-col items-center"
                   >
                     <span>Quit Application</span>
-                    <span className="text-[10px] opacity-40 font-normal uppercase">Kill connection</span>
+                    <span className="text-[10px] opacity-40 font-normal">VPN will disconnect</span>
                   </button>
                 </div>
 
@@ -391,13 +413,13 @@ export default function App() {
                        <div className="w-4 h-4 border border-white/20 rounded peer-checked:bg-white peer-checked:border-white transition-all" />
                        <CheckIcon className="absolute inset-0 w-4 h-4 text-black scale-0 peer-checked:scale-100 transition-transform" />
                      </div>
-                     <span className="text-[11px] text-white/30 group-hover:text-white/50 transition-colors uppercase font-bold tracking-widest">Remember choice</span>
+                     <span className="text-[11px] text-white/30 group-hover:text-white/50 transition-colors">Remember my choice</span>
                    </label>
                 </div>
 
                 <button 
                   onClick={() => setShowCloseModal(false)}
-                  className="w-full mt-4 text-[11px] text-white/20 hover:text-white transition-colors uppercase font-bold"
+                  className="w-full mt-4 text-[11px] text-white/20 hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
