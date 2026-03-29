@@ -50,7 +50,6 @@ async fn fetch_sub_stats(url: String) -> Result<serde_json::Value, String> {
 
     let res = client.get(&url).send().await.map_err(|e| e.to_string())?;
     
-    // Parse the Subscription-Userinfo header
     let info = res.headers()
         .get("subscription-userinfo")
         .and_then(|v| v.to_str().ok())
@@ -91,7 +90,6 @@ async fn start_vpn(b64: String, app: AppHandle, state: State<'_, VpnState>) -> R
         kill_orphaned_singbox();
     }
     
-    // Clear old logs
     {
         let mut log_lock = state.logs.lock().unwrap();
         *log_lock = String::new();
@@ -105,58 +103,18 @@ async fn start_vpn(b64: String, app: AppHandle, state: State<'_, VpnState>) -> R
 
     let parsed_url = Url::parse(&uri).map_err(|e| format!("Invalid URI format: {}", e))?;
     let scheme = parsed_url.scheme();
+    
+    if scheme != "hy2" {
+        return Err("Unsupported protocol. Please use a Hysteria 2 link.".to_string());
+    }
+
     let host = parsed_url.host_str().unwrap_or("140.245.13.64").to_string();
     let port = parsed_url.port().unwrap_or(443);
     let auth_user = parsed_url.username().to_string();
     
     let query: std::collections::HashMap<_, _> = parsed_url.query_pairs().into_owned().collect();
-    
-    let outbound = if scheme == "hy2" {
-        let sni = query.get("sni").cloned().unwrap_or(host.clone());
-        let insecure = query.get("insecure").map(|v| v == "1").unwrap_or(false);
-        serde_json::json!({
-            "type": "hysteria2",
-            "tag": "proxy",
-            "server": host,
-            "server_port": port,
-            "password": auth_user,
-            "tls": {
-                "enabled": true,
-                "server_name": sni,
-                "insecure": insecure,
-                "utls": {
-                    "enabled": true,
-                    "fingerprint": "chrome"
-                }
-            }
-        })
-    } else {
-        let sni = query.get("sni").cloned().unwrap_or("".to_string());
-        let pbk = query.get("pbk").cloned().unwrap_or("".to_string());
-        let sid = query.get("sid").cloned().unwrap_or("".to_string());
-        let flow = query.get("flow").cloned().unwrap_or("".to_string());
-        serde_json::json!({
-            "type": "vless",
-            "tag": "proxy",
-            "server": host,
-            "server_port": port,
-            "uuid": auth_user,
-            "flow": if flow.is_empty() { "xtls-rprx-vision" } else { &flow },
-            "tls": {
-                "enabled": true,
-                "server_name": sni,
-                "utls": {
-                    "enabled": true,
-                    "fingerprint": "chrome"
-                },
-                "reality": {
-                    "enabled": true,
-                    "public_key": pbk,
-                    "short_id": sid
-                }
-            }
-        })
-    };
+    let sni = query.get("sni").cloned().unwrap_or(host.clone());
+    let insecure = query.get("insecure").map(|v| v == "1").unwrap_or(false);
 
     let config_json = serde_json::json!({
         "log": { "level": "info" },
@@ -183,7 +141,22 @@ async fn start_vpn(b64: String, app: AppHandle, state: State<'_, VpnState>) -> R
             }
         ],
         "outbounds": [
-            outbound,
+            {
+                "type": "hysteria2",
+                "tag": "proxy",
+                "server": host,
+                "server_port": port,
+                "password": auth_user,
+                "tls": {
+                    "enabled": true,
+                    "server_name": sni,
+                    "insecure": insecure,
+                    "utls": {
+                        "enabled": true,
+                        "fingerprint": "chrome"
+                    }
+                }
+            },
             { "type": "direct", "tag": "direct" },
             { "type": "dns", "tag": "dns-out" }
         ],
@@ -203,7 +176,7 @@ async fn start_vpn(b64: String, app: AppHandle, state: State<'_, VpnState>) -> R
         .app_data_dir()
         .map_err(|_| "Failed to get app dir".to_string())?;
     std::fs::create_dir_all(&app_dir).unwrap_or_default();
-    let config_path = app_dir.join("sing-box-v6.json");
+    let config_path = app_dir.join("sing-box-v7.json");
     std::fs::write(&config_path, config_json.to_string()).map_err(|e| e.to_string())?;
 
     let (mut rx, child) = app
