@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { load } from "@tauri-apps/plugin-store";
-import { Power, Clock, X, Minus, ScrollText } from "lucide-react";
+import { Power, Wifi, Clock, Settings, X, Minus, LogOut, RotateCcw, AlertTriangle, ScrollText, Copy } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Dither from "./components/Dither";
 
@@ -86,12 +86,12 @@ export default function App() {
       setIsEditingLink(false);
       fetchStatsFromUri(subLink);
     } catch (err: any) {
-      setError("Failed to save: " + err.toString());
+      setError("Failed to save settings: " + err.toString());
     }
   }
 
   async function resetConfig() {
-    if (!confirm("Reset configuration?")) return;
+    if (!confirm("Are you sure you want to reset your configuration?")) return;
     try {
       const store = await load("settings.bin");
       await store.delete("subLink");
@@ -100,7 +100,7 @@ export default function App() {
       setStats(null);
       setError("");
       setIsEditingLink(true);
-      if (status !== "disconnected") await disconnect();
+      if (status === "connected") await disconnect();
     } catch (err: any) {
       setError("Reset failed: " + err.toString());
     }
@@ -122,7 +122,7 @@ export default function App() {
   async function connect() {
     setStatus("connecting");
     setError("");
-    setLogs([]); 
+    setLogs([]);
     try {
       await fetchStatsFromUri(subLink);
       await invoke("start_vpn", { uri: subLink });
@@ -152,7 +152,8 @@ export default function App() {
   }
 
   function copyLogs() {
-    navigator.clipboard.writeText(logs.join("")).catch(console.error);
+    const logText = logs.join("");
+    navigator.clipboard.writeText(logText).catch(console.error);
   }
 
   async function executeCloseAction(action: "quit" | "hide") {
@@ -162,6 +163,7 @@ export default function App() {
       await store.save();
       setClosePreference(action);
     }
+    
     setShowCloseModal(false);
     if (action === "quit") {
       invoke("exit_app");
@@ -190,122 +192,220 @@ export default function App() {
     <div className="relative w-full h-screen bg-[#09090b] text-white flex flex-col overflow-hidden">
       <Dither />
       
-      {/* Titlebar */}
+      {/* Custom Titlebar */}
       <div data-tauri-drag-region className="drag h-10 w-full flex-shrink-0 flex items-center justify-between px-4 z-50 relative">
-        <span className="text-[10px] font-bold tracking-widest text-white/30 uppercase italic">SpicyVPN</span>
+        <div className="flex items-center gap-2 pointer-events-none">
+          <span className="text-xs font-semibold tracking-wide text-white/70 uppercase">SpicyVPN</span>
+        </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => invoke("minimize_window")} className="p-1.5 text-white/20 hover:text-white transition-colors no-drag"><Minus className="w-3.5 h-3.5" /></button>
-          <button onClick={handleCloseRequest} className="p-1.5 text-white/20 hover:text-red-400 transition-colors no-drag"><X className="w-3.5 h-3.5" /></button>
+          <button onClick={() => invoke("minimize_window")} className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-md transition-colors no-drag">
+            <Minus className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={handleCloseRequest} className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors no-drag">
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
-      <main className="relative flex-1 flex flex-col items-center justify-center p-8 z-10">
+      <main className="relative flex-1 flex flex-col items-center justify-center p-6 z-10 w-full h-full">
+        
         {showLogs ? (
-          <div className="w-full h-full flex flex-col">
+          <div className="w-full h-full flex flex-col pt-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold flex items-center gap-2 uppercase tracking-widest text-white/50"><ScrollText className="w-4 h-4" /> Trace Logs</h2>
-              <div className="flex gap-2">
-                <button onClick={copyLogs} className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white px-3 py-1 bg-white/5 rounded transition-colors">Copy</button>
-                <button onClick={() => setShowLogs(false)} className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white px-3 py-1 bg-white/5 rounded transition-colors">Back</button>
+              <h2 className="text-lg font-semibold flex items-center gap-2 uppercase tracking-tight"><ScrollText className="w-5 h-5" /> Connection Logs</h2>
+              <div className="flex items-center gap-2">
+                <button onClick={copyLogs} className="text-xs flex items-center gap-1 text-white/40 hover:text-white px-3 py-1 bg-white/5 rounded-md transition-colors"><Copy className="w-3 h-3"/> Copy</button>
+                <button onClick={() => setShowLogs(false)} className="text-xs text-white/40 hover:text-white px-3 py-1 bg-white/5 rounded-md transition-colors">Back</button>
               </div>
             </div>
-            <div className="flex-1 bg-black border border-white/5 rounded-lg p-4 font-mono text-[9px] text-blue-400/60 overflow-y-auto whitespace-pre-wrap flex flex-col justify-end">
-              {logs.length === 0 ? "// Waiting for telemetry..." : logs.join("")}
+            <div className="flex-1 bg-black/50 border border-white/10 rounded-lg p-4 font-mono text-[10px] text-emerald-400/80 overflow-y-auto whitespace-pre-wrap flex flex-col justify-end">
+              {logs.length === 0 ? "No logs yet..." : logs.join("")}
             </div>
           </div>
         ) : (
         <AnimatePresence mode="wait">
           {isEditingLink ? (
-            <motion.form key="setup" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="w-full max-w-sm flex flex-col gap-6" onSubmit={saveLink}>
-              <div className="text-center">
-                <h2 className="text-2xl font-black uppercase italic tracking-tighter">Initialize</h2>
-                <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mt-1">Paste Direct URI (hy2://)</p>
+            <motion.form 
+              key="setup"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="w-full flex flex-col gap-4 relative z-20"
+              onSubmit={saveLink}
+            >
+              <div className="text-center mb-2">
+                <h2 className="text-lg font-semibold uppercase">Setup Connection</h2>
+                <p className="text-xs text-white/40">Paste your SpicyVPN Direct URI (hy2://)</p>
               </div>
-              <input type="text" value={subLink} onChange={(e) => setSubLink(e.target.value)} placeholder="hy2://token@host:port..." className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-sm outline-none focus:border-white/30 transition-all font-mono placeholder:text-white/10" autoFocus />
-              {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase p-3 rounded-lg text-center leading-relaxed">{error}</div>}
-              <button type="submit" className="w-full bg-white text-black font-black rounded-xl py-4 text-xs uppercase tracking-widest hover:bg-zinc-200 transition-colors">Save Gateway</button>
-              <button type="button" onClick={() => invoke("exit_app")} className="text-[10px] font-bold uppercase tracking-widest text-white/20 hover:text-red-400 transition-colors mt-2">Kill Application</button>
+              <input
+                type="text"
+                value={subLink}
+                onChange={(e) => setSubLink(e.target.value)}
+                placeholder="hy2://token@host:port..."
+                className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-sm outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
+                autoFocus
+              />
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg text-center break-words">
+                  {error}
+                </div>
+              )}
+              <button 
+                type="submit" 
+                className="w-full cursor-pointer pointer-events-auto bg-white text-black font-semibold rounded-lg py-3 text-sm hover:bg-white/90 transition-colors uppercase tracking-widest"
+              >
+                Save & Continue
+              </button>
+              <button 
+                type="button"
+                onClick={() => invoke("exit_app")}
+                className="w-full mt-2 text-white/20 hover:text-red-400 text-xs py-2 transition-colors flex items-center justify-center gap-2"
+              >
+                <LogOut className="w-3 h-3" /> Quit Application
+              </button>
             </motion.form>
           ) : (
-            <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full flex flex-col items-center gap-10">
+            <motion.div 
+              key="main"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full flex flex-col items-center gap-8"
+            >
+              {/* Status Header */}
               <div className="text-center">
-                <h1 className={`text-3xl font-black italic tracking-tighter uppercase transition-all duration-700 ${isExpired || isOutOfData ? 'text-red-500' : status === 'connected' ? 'text-white' : 'text-white/40'}`}>
-                  {isExpired ? 'Link Expired' : isOutOfData ? 'Limit Hit' : status === 'connected' ? 'Secured' : status === 'connecting' ? 'Handshaking' : 'Dormant'}
+                <h1 className={`text-2xl font-black tracking-tight transition-colors duration-500 uppercase ${isExpired || isOutOfData ? 'text-red-500' : status === 'connected' ? 'text-white' : 'text-white/40'}`}>
+                  {isExpired ? 'Expired' : isOutOfData ? 'Limit Hit' : status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : 'Disconnected'}
                 </h1>
-                <div className="flex items-center justify-center gap-2 mt-2">
-                  <div className={`w-1 h-1 rounded-full ${status === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : status === 'connecting' ? 'bg-blue-500 animate-pulse' : 'bg-zinc-800'}`} />
-                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30">{status === 'connected' ? 'Encrypted' : 'Unprotected'}</span>
-                </div>
+                <p className="text-xs text-white/40 mt-1 uppercase tracking-widest">
+                  {status === 'connected' ? 'Your traffic is secured' : 'VPN is currently offline'}
+                </p>
               </div>
 
-              <button onClick={toggleVpn} disabled={status === 'connecting' || !!isExpired || !!isOutOfData} className={`relative group w-36 h-36 rounded-[2.5rem] flex items-center justify-center transition-all duration-700 border-2
-                  ${status === 'connected' ? 'bg-white/10 border-white/20 text-white' : status === 'connecting' ? 'bg-white/5 border-white/10 text-white/40' : isExpired || isOutOfData ? 'bg-red-500/5 border-red-500/10 grayscale opacity-20' : 'bg-transparent border-white/5 text-white/20 hover:border-white/20 hover:text-white'}`}>
-                <Power className={`w-14 h-14 transition-all duration-500 ${status === 'connected' ? 'scale-110 drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]' : 'group-hover:scale-105'}`} strokeWidth={status === 'connected' ? 3 : 2} />
+              {/* Main Toggle Button */}
+              <button
+                onClick={toggleVpn}
+                disabled={status === 'connecting' || !!isExpired || !!isOutOfData}
+                className={`relative group w-32 h-32 rounded-3xl flex items-center justify-center transition-all duration-500
+                  ${status === 'connected'
+                    ? 'bg-white/10 border-white/30 text-white'
+                    : status === 'connecting'
+                    ? 'bg-white/5 border-white/20 text-white/70'
+                    : isExpired || isOutOfData
+                    ? 'bg-red-500/5 border-red-500/20 text-red-500/30 grayscale'
+                    : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white hover:border-white/20'}
+                  border-2 shadow-2xl`}
+              >
+                <Power className={`w-12 h-12 transition-transform duration-300 ${status === 'connected' ? 'scale-110 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'group-hover:scale-105'}`} />
               </button>
-
-              <div className="w-full max-w-xs space-y-6">
+              {/* Stats & Info */}
+              <div className="w-full space-y-4">
                 {error ? (
-                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] font-black uppercase p-4 rounded-xl text-center flex flex-col gap-3">
-                    <span className="leading-relaxed">{error}</span>
-                    <button onClick={() => setIsEditingLink(true)} className="text-white/40 hover:text-white underline decoration-white/10 transition-colors">Resolve Config</button>
+                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg text-center break-words flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>{error}</span>
+                    </div>
+                    <button onClick={() => setIsEditingLink(true)} className="text-white/40 hover:text-white underline decoration-white/10">Try another link</button>
                   </div>
                 ) : (
                   <>
                     {stats && (
-                      <div className="bg-black/40 border border-white/5 rounded-2xl p-5 space-y-3">
-                        <div className="flex justify-between items-end">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-white/20">Data Payload</span>
-                          <span className="text-[10px] font-bold font-mono text-white/60">{formatBytes(usedBytes)} <span className="text-[8px] text-white/20">/</span> {formatBytes(stats.total)}</span>
+                      <div className="bg-black/50 border border-white/5 rounded-xl p-4">
+                        <div className="flex justify-between text-[10px] uppercase font-bold text-white/50 mb-2 tracking-widest">
+                          <span className="flex items-center gap-1.5"><Wifi className="w-3 h-3"/> Data Volume</span>
+                          <span>{`${formatBytes(usedBytes)} / ${formatBytes(stats.total)}`}</span>
                         </div>
-                        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                          <div className={`h-full transition-all duration-1000 ${usedPct > 80 || isOutOfData ? 'bg-red-500' : status === 'connected' ? 'bg-emerald-500' : 'bg-zinc-700'}`} style={{ width: `${Math.min(100, usedPct)}%` }} />
+                        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-1000 ${usedPct > 80 || isOutOfData ? 'bg-red-500' : 'bg-emerald-500'}`}
+                            style={{ width: `${Math.min(100, usedPct)}%` }}
+                          />
                         </div>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest px-2">
-                      <span className={`flex items-center gap-1.5 ${isExpired ? 'text-red-500' : 'text-white/30'}`}>
-                        <Clock className="w-3 h-3" /> {stats ? `${daysLeft(stats.expire)} D` : 'STATIC'}
+                    <div className="flex items-center justify-between text-[10px] font-bold uppercase text-white/40 px-2 tracking-widest">
+                      <span className={`flex items-center gap-1.5 ${isExpired ? 'text-red-400' : ''}`}>
+                        <Clock className="w-3 h-3" /> 
+                        {stats ? `${daysLeft(stats.expire)} days` : '--'}
                       </span>
-                      <div className="flex gap-5">
-                        <button onClick={() => setShowLogs(true)} className="hover:text-white text-white/30 transition-colors">Trace</button>
-                        <button onClick={() => setIsEditingLink(true)} className="hover:text-white text-white/30 transition-colors">Gate</button>
-                        <button onClick={resetConfig} className="hover:text-amber-500 text-white/30 transition-colors">Purge</button>
+                      <div className="flex gap-4">
+                        <button onClick={() => setShowLogs(true)} className="hover:text-white transition-colors">Logs</button>
+                        <button onClick={() => setIsEditingLink(true)} className="hover:text-white transition-colors">Config</button>
+                        <button onClick={resetConfig} className="hover:text-amber-400 transition-colors">Reset</button>
                       </div>
                     </div>
                   </>
                 )}
               </div>
+
             </motion.div>
           )}
         </AnimatePresence>
         )}
 
+        {/* Close Choice Modal */}
         <AnimatePresence>
           {showCloseModal && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md">
-              <motion.div initial={{ scale: 0.95, y: 5 }} animate={{ scale: 1, y: 0 }} className="bg-[#0c0c0e] border border-white/5 rounded-3xl p-8 w-full max-w-xs shadow-2xl">
-                <h3 className="text-xl font-black italic uppercase tracking-tighter mb-2">Power Down?</h3>
-                <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-8 leading-relaxed">System termination behavior</p>
-                <div className="space-y-3">
-                  <button onClick={() => executeCloseAction("hide")} className="w-full bg-white/5 hover:bg-white/10 border border-white/5 text-white rounded-2xl py-4 text-[10px] font-black uppercase tracking-widest transition-all">Minimize to Tray</button>
-                  <button onClick={() => executeCloseAction("quit")} className="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/5 text-red-400 rounded-2xl py-4 text-[10px] font-black uppercase tracking-widest transition-all">Kill Instance</button>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 10 }}
+                animate={{ scale: 1, y: 0 }}
+                className="bg-[#0c0c0e] border border-white/10 rounded-2xl p-6 w-full max-w-xs shadow-2xl"
+              >
+                <h3 className="text-lg font-bold mb-2 uppercase">Exit SpicyVPN?</h3>
+                <p className="text-xs text-white/40 mb-6 leading-relaxed">Choose how you want to handle the application.</p>
+                
+                <div className="space-y-2">
+                  <button 
+                    onClick={() => executeCloseAction("hide")}
+                    className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl py-3 text-sm font-semibold transition-colors flex flex-col items-center"
+                  >
+                    <span>Minimize to Tray</span>
+                    <span className="text-[10px] opacity-40 font-normal uppercase">Keep connection active</span>
+                  </button>
+                  <button 
+                    onClick={() => executeCloseAction("quit")}
+                    className="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-xl py-3 text-sm font-semibold transition-colors flex flex-col items-center"
+                  >
+                    <span>Quit Application</span>
+                    <span className="text-[10px] opacity-40 font-normal uppercase">Kill connection</span>
+                  </button>
                 </div>
-                <div className="mt-8 flex items-center gap-3 justify-center">
+
+                <div className="mt-6 flex items-center gap-3 justify-center">
                    <label className="flex items-center gap-2 cursor-pointer group">
                      <div className="relative">
-                       <input type="checkbox" checked={rememberCloseChoice} onChange={(e) => setRememberCloseChoice(e.target.checked)} className="sr-only peer" />
-                       <div className="w-4 h-4 border border-white/10 rounded peer-checked:bg-white transition-all" />
+                       <input 
+                        type="checkbox" 
+                        checked={rememberCloseChoice}
+                        onChange={(e) => setRememberCloseChoice(e.target.checked)}
+                        className="sr-only peer"
+                       />
+                       <div className="w-4 h-4 border border-white/20 rounded peer-checked:bg-white peer-checked:border-white transition-all" />
                        <CheckIcon className="absolute inset-0 w-4 h-4 text-black scale-0 peer-checked:scale-100 transition-transform" />
                      </div>
-                     <span className="text-[9px] font-black uppercase tracking-widest text-white/20 group-hover:text-white/40">Cache Selection</span>
+                     <span className="text-[11px] text-white/30 group-hover:text-white/50 transition-colors uppercase font-bold tracking-widest">Remember choice</span>
                    </label>
                 </div>
-                <button onClick={() => setShowCloseModal(false)} className="w-full mt-6 text-[9px] font-black uppercase tracking-[0.2em] text-white/10 hover:text-white transition-colors">Abort</button>
+
+                <button 
+                  onClick={() => setShowCloseModal(false)}
+                  className="w-full mt-4 text-[11px] text-white/20 hover:text-white transition-colors uppercase font-bold"
+                >
+                  Cancel
+                </button>
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
+
       </main>
     </div>
   );
@@ -313,7 +413,7 @@ export default function App() {
 
 function CheckIcon(props: any) {
   return (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={5} {...props}>
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4} {...props}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
     </svg>
   );
