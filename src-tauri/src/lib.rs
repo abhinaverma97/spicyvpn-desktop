@@ -125,13 +125,12 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "log": { "level": "info" },
         "dns": {
             "servers": [
-                { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" }
+                { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" },
+                { "tag": "dns-direct", "address": "8.8.8.8", "detour": "direct" }
             ],
-            "rules": [ 
-                { "outbound": "any", "server": "dns-remote" } 
-            ],
-            "final": "dns-remote",
-            "strategy": "prefer_ipv4"
+            "rules": [
+                { "outbound": "any", "server": "dns-remote" }
+            ]
         },
         "inbounds": [
             {
@@ -141,11 +140,9 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "inet4_address": "172.19.0.1/30",
                 "auto_route": true,
                 "strict_route": true,
-                "stack": "gvisor", 
-                "mtu": 1350,       
-                "sniff": true,
-                "sniff_override_destination": true,
-                "udp_timeout": 300
+                "stack": "gvisor",
+                "mtu": 1400,
+                "sniff": true
             }
         ],
         "outbounds": [
@@ -156,7 +153,6 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "server_port": port,
                 "uuid": uuid,
                 "flow": if flow.is_empty() { "xtls-rprx-vision" } else { &flow },
-                "domain_strategy": "prefer_ipv4",
                 "tls": {
                     "enabled": true,
                     "server_name": sni,
@@ -190,7 +186,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         .app_data_dir()
         .map_err(|_| "Failed to get app dir".to_string())?;
     std::fs::create_dir_all(&app_dir).unwrap_or_default();
-    let config_path = app_dir.join("sing-box-v3.json");
+    let config_path = app_dir.join("sing-box-v4.json");
     std::fs::write(&config_path, config_json.to_string()).map_err(|e| e.to_string())?;
 
     let (mut rx, child) = app
