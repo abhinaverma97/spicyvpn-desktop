@@ -175,9 +175,11 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             { "type": "dns", "tag": "dns-out" }
         ],
         "route": {
-            "auto_detect_interface": false,
+            "auto_detect_interface": true,
             "rules": [
-                { "protocol": "dns", "outbound": "dns-out" }
+                { "protocol": "dns", "outbound": "dns-out" },
+                { "ip_is_private": true, "outbound": "direct" },
+                { "outbound": "direct", "ip_cidr": [host] }
             ],
             "final": "proxy"
         }
