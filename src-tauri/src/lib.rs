@@ -9,14 +9,11 @@ use tauri_plugin_shell::{process::CommandChild, ShellExt};
 use url::Url;
 
 #[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
-#[derive(Serialize)]
-struct SubStats {
-    upload: u64,
-    download: u64,
-    total: u64,
-    expire: i64,
+fn kill_process_by_name(name: &str) {
+    use std::process::Command;
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", name, "/T"])
+        .spawn();
 }
 
 struct VpnState {
@@ -28,45 +25,55 @@ struct VpnState {
 fn kill_orphaned_singbox() {
     #[cfg(windows)]
     {
-        let _ = std::process::Command::new("taskkill")
-            .args(["/F", "/IM", "sing-box.exe", "/T"])
-            .creation_flags(0x08000000) // CREATE_NO_WINDOW
-            .spawn();
+        kill_process_by_name("sing-box.exe");
+    }
+    #[cfg(not(windows))]
+    {
+        use std::process::Command;
+        let _ = Command::new("pkill").arg("-f").arg("sing-box").spawn();
     }
 }
 
 #[tauri::command]
-async fn fetch_sub_stats(url: String) -> Result<SubStats, String> {
-    let client = reqwest::Client::new();
-    let res = client.get(&url).send().await.map_err(|e| e.to_string())?;
-
-    if !res.status().is_success() {
-        return Err(format!("Server returned {}", res.status()));
+fn hide_window(app: AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
     }
+}
 
-    let headers = res.headers();
-    let userinfo = headers
-        .get("Subscription-Userinfo")
+#[tauri::command]
+async fn fetch_sub_stats(url: String) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("SpicyVPN Desktop")
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let res = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    
+    // Parse the Subscription-Userinfo header
+    let info = res.headers()
+        .get("subscription-userinfo")
         .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+        .unwrap_or("upload=0; download=0; total=0; expire=0");
 
-    let mut stats = SubStats {
-        upload: 0,
-        download: 0,
-        total: 0,
-        expire: 0,
-    };
+    let mut stats = serde_json::json!({
+        "upload": 0,
+        "download": 0,
+        "total": 0,
+        "expire": 0
+    });
 
-    for part in userinfo.split(';') {
-        let kv: Vec<&str> = part.trim().split('=').collect();
+    for part in info.split(';') {
+        let kv: Vec<&str> = part.split('=').map(|s| s.trim()).collect();
         if kv.len() == 2 {
-            let val: u64 = kv[1].parse().unwrap_or(0);
-            match kv[0] {
-                "upload" => stats.upload = val,
-                "download" => stats.download = val,
-                "total" => stats.total = val,
-                "expire" => stats.expire = kv[1].parse().unwrap_or(0),
-                _ => {}
+            if let Ok(val) = kv[1].parse::<u64>() {
+                match kv[0] {
+                    "upload" => stats["upload"] = serde_json::json!(val),
+                    "download" => stats["download"] = serde_json::json!(val),
+                    "total" => stats["total"] = serde_json::json!(val),
+                    "expire" => stats["expire"] = serde_json::json!(val),
+                    _ => {}
+                }
             }
         }
     }
@@ -75,7 +82,7 @@ async fn fetch_sub_stats(url: String) -> Result<SubStats, String> {
 }
 
 #[tauri::command]
-async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
+async fn start_vpn(b64: String, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
     {
         let mut lock = state.child.lock().unwrap();
         if let Some(child) = lock.take() {
@@ -90,47 +97,77 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         *log_lock = String::new();
     }
 
-    let res = reqwest::get(&url).await.map_err(|e| e.to_string())?;
-    let b64 = res.text().await.map_err(|e| e.to_string())?;
-
     use base64::{engine::general_purpose, Engine as _};
     let decoded = general_purpose::STANDARD
-        .decode(b64.trim())
-        .map_err(|e| format!("Base64 Error: {}", e))?;
+        .decode(&b64)
+        .map_err(|e| e.to_string())?;
     let uri = String::from_utf8(decoded).map_err(|e| e.to_string())?;
 
     let parsed_url = Url::parse(&uri).map_err(|e| format!("Invalid URI format: {}", e))?;
-
-    let uuid = parsed_url.username();
-    let host = parsed_url.host_str().unwrap_or("140.245.13.64");
+    let scheme = parsed_url.scheme();
+    let host = parsed_url.host_str().unwrap_or("140.245.13.64").to_string();
     let port = parsed_url.port().unwrap_or(443);
-
-    let mut sni = String::new();
-    let mut pbk = String::new();
-    let mut sid = String::new();
-    let mut flow = String::new();
+    let auth_user = parsed_url.username().to_string();
     
-    // Parse VLESS parameters
-    for (k, v) in parsed_url.query_pairs() {
-        match k.as_ref() {
-            "sni" => sni = v.to_string(),
-            "pbk" => pbk = v.to_string(),
-            "sid" => sid = v.to_string(),
-            "flow" => flow = v.to_string(),
-            _ => {}
-        }
-    }
+    let query: std::collections::HashMap<_, _> = parsed_url.query_pairs().into_owned().collect();
+    
+    let outbound = if scheme == "hy2" {
+        let sni = query.get("sni").cloned().unwrap_or(host.clone());
+        let insecure = query.get("insecure").map(|v| v == "1").unwrap_or(false);
+        serde_json::json!({
+            "type": "hysteria2",
+            "tag": "proxy",
+            "server": host,
+            "server_port": port,
+            "password": auth_user,
+            "tls": {
+                "enabled": true,
+                "server_name": sni,
+                "insecure": insecure,
+                "utls": {
+                    "enabled": true,
+                    "fingerprint": "chrome"
+                }
+            }
+        })
+    } else {
+        let sni = query.get("sni").cloned().unwrap_or("".to_string());
+        let pbk = query.get("pbk").cloned().unwrap_or("".to_string());
+        let sid = query.get("sid").cloned().unwrap_or("".to_string());
+        let flow = query.get("flow").cloned().unwrap_or("".to_string());
+        serde_json::json!({
+            "type": "vless",
+            "tag": "proxy",
+            "server": host,
+            "server_port": port,
+            "uuid": auth_user,
+            "flow": if flow.is_empty() { "xtls-rprx-vision" } else { &flow },
+            "tls": {
+                "enabled": true,
+                "server_name": sni,
+                "utls": {
+                    "enabled": true,
+                    "fingerprint": "chrome"
+                },
+                "reality": {
+                    "enabled": true,
+                    "public_key": pbk,
+                    "short_id": sid
+                }
+            }
+        })
+    };
 
     let config_json = serde_json::json!({
         "log": { "level": "info" },
         "dns": {
             "servers": [
-                { "tag": "dns-remote", "address": "1.1.1.1", "detour": "proxy" }
+                { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" },
+                { "tag": "dns-direct", "address": "8.8.8.8", "detour": "direct" }
             ],
             "rules": [
                 { "outbound": "any", "server": "dns-remote" }
-            ],
-            "final": "dns-remote"
+            ]
         },
         "inbounds": [
             {
@@ -141,32 +178,12 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "auto_route": true,
                 "strict_route": true,
                 "stack": "gvisor",
-                "mtu": 1400,
+                "mtu": 1350,
                 "sniff": true
             }
         ],
         "outbounds": [
-            {
-                "type": "vless",
-                "tag": "proxy",
-                "server": host,
-                "server_port": port,
-                "uuid": uuid,
-                "flow": if flow.is_empty() { "xtls-rprx-vision" } else { &flow },
-                "tls": {
-                    "enabled": true,
-                    "server_name": sni,
-                    "utls": {
-                        "enabled": true,
-                        "fingerprint": "chrome"
-                    },
-                    "reality": {
-                        "enabled": true,
-                        "public_key": pbk,
-                        "short_id": sid
-                    }
-                }
-            },
+            outbound,
             { "type": "direct", "tag": "direct" },
             { "type": "dns", "tag": "dns-out" }
         ],
@@ -186,7 +203,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         .app_data_dir()
         .map_err(|_| "Failed to get app dir".to_string())?;
     std::fs::create_dir_all(&app_dir).unwrap_or_default();
-    let config_path = app_dir.join("sing-box-v5.json");
+    let config_path = app_dir.join("sing-box-v6.json");
     std::fs::write(&config_path, config_json.to_string()).map_err(|e| e.to_string())?;
 
     let (mut rx, child) = app
@@ -258,36 +275,14 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
 }
 
 #[tauri::command]
-fn exit_app(app: AppHandle, state: State<'_, VpnState>) {
-    {
-        let mut lock = state.child.lock().unwrap();
-        if let Some(child) = lock.take() {
-            let _ = child.kill();
-        }
-    }
-    kill_orphaned_singbox();
-    app.exit(0);
-}
-
-#[tauri::command]
-fn hide_window(app: AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.hide();
-    }
-}
-
-#[tauri::command]
-fn stop_vpn(state: State<'_, VpnState>) -> Result<(), String> {
-    {
-        let mut lock = state.child.lock().unwrap();
-        if let Some(child) = lock.take() {
-            let _ = child.kill();
-        }
+fn stop_vpn(state: State<'_, VpnState>) {
+    let mut lock = state.child.lock().unwrap();
+    if let Some(child) = lock.take() {
+        let _ = child.kill();
     }
     kill_orphaned_singbox();
     let mut status_lock = state.status.lock().unwrap();
     *status_lock = "disconnected".to_string();
-    Ok(())
 }
 
 #[tauri::command]
@@ -297,16 +292,28 @@ fn get_vpn_status(state: State<'_, VpnState>) -> String {
 }
 
 #[tauri::command]
+fn get_vpn_logs(state: State<'_, VpnState>) -> String {
+    let lock = state.logs.lock().unwrap();
+    lock.clone()
+}
+
+#[tauri::command]
+fn exit_app(app: AppHandle, state: State<'_, VpnState>) {
+    {
+        let mut lock = state.child.lock().unwrap();
+        if let Some(child) = lock.take() {
+            let _ = child.kill();
+        }
+        kill_orphaned_singbox();
+    }
+    app.exit(0);
+}
+
+#[tauri::command]
 fn minimize_window(app: AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.minimize();
     }
-}
-
-#[tauri::command]
-fn get_vpn_logs(state: State<'_, VpnState>) -> String {
-    let lock = state.logs.lock().unwrap();
-    lock.clone()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -331,7 +338,7 @@ pub fn run() {
             kill_orphaned_singbox();
 
             let quit_i = MenuItem::with_id(app, "quit", "Quit SpicyVPN", true, None::<&str>)?;
-            let show_i = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
+            let show_i = MenuItem::with_id(app, "show", "Show Interface", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
             let _tray = TrayIconBuilder::new()
@@ -339,37 +346,32 @@ pub fn run() {
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => {
-                        let state: State<VpnState> = app.state();
-                        {
-                            let mut lock = state.child.lock().unwrap();
-                            if let Some(child) = lock.take() {
-                                let _ = child.kill();
-                            }
-                        }
                         kill_orphaned_singbox();
                         app.exit(0);
                     }
                     "show" => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
+                            let _ = window.unminimize();
                             let _ = window.set_focus();
                         }
                     }
                     _ => {}
                 })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
+                .on_tray_icon_event(|tray, event| match event {
+                    TrayIconEvent::Click {
                         button: MouseButton::Left,
-                        button_state: MouseButtonState::Down,
+                        button_state: MouseButtonState::Up,
                         ..
-                    } = event
-                    {
+                    } => {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
+                            let _ = window.unminimize();
                             let _ = window.set_focus();
                         }
                     }
+                    _ => {}
                 })
                 .build(app)?;
 
