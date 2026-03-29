@@ -81,7 +81,7 @@ async fn fetch_sub_stats(url: String) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
+async fn start_vpn(uri: String, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
     // 1. Cleanup old instances
     {
         let mut lock = state.child.lock().unwrap();
@@ -96,27 +96,12 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         *log_lock = String::new();
     }
 
-    // 2. Determine if it's a sub link or a raw URI
-    let uri = if url.starts_with("http") {
-        let client = reqwest::Client::new();
-        let res = client.get(&url).send().await.map_err(|e| format!("Failed to fetch sub: {}", e))?;
-        let b64_body = res.text().await.map_err(|e| format!("Empty sub body: {}", e))?;
-        
-        use base64::{engine::general_purpose, Engine as _};
-        let decoded = general_purpose::STANDARD
-            .decode(b64_body.trim())
-            .map_err(|_| "Failed to decode subscription content".to_string())?;
-        String::from_utf8(decoded).map_err(|e| e.to_string())?
-    } else {
-        url.clone()
-    };
-
-    // 3. Parse the URI
+    // 2. Parse the URI directly (only take URI input)
     let parsed_url = Url::parse(&uri).map_err(|e| format!("Invalid URI format: {}", e))?;
     let scheme = parsed_url.scheme();
     
     if scheme != "hy2" && scheme != "dhv2" {
-        return Err(format!("Unsupported protocol '{}'. Please use Hysteria 2.", scheme));
+        return Err(format!("Unsupported protocol '{}'. Please use a Hysteria 2 link (hy2://).", scheme));
     }
 
     let host = parsed_url.host_str().unwrap_or("140.245.13.64").to_string();
@@ -127,7 +112,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let sni = query.get("sni").cloned().unwrap_or(host.clone());
     let insecure = query.get("insecure").map(|v| v == "1").unwrap_or(false);
 
-    // 4. Generate optimized sing-box config
+    // 3. Generate optimized sing-box config
     let config_json = serde_json::json!({
         "log": { "level": "info" },
         "dns": {
@@ -188,10 +173,10 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         .app_data_dir()
         .map_err(|_| "Failed to get app dir".to_string())?;
     std::fs::create_dir_all(&app_dir).unwrap_or_default();
-    let config_path = app_dir.join("sing-box-v8.json");
+    let config_path = app_dir.join("sing-box-v9.json");
     std::fs::write(&config_path, config_json.to_string()).map_err(|e| e.to_string())?;
 
-    // 5. Spawn process and monitor logs
+    // 4. Spawn process and monitor logs
     let (mut rx, child) = app
         .shell()
         .sidecar("sing-box")
@@ -205,7 +190,6 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         *lock = Some(child);
     }
 
-    // Set internal state to connecting initially
     {
         let mut status_lock = state.status.lock().unwrap();
         *status_lock = "connecting".to_string();
@@ -218,7 +202,6 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 tauri_plugin_shell::process::CommandEvent::Stdout(line) => {
                     let text = String::from_utf8_lossy(&line).into_owned();
                     
-                    // IF we see the tunnel started message, update status to connected
                     if text.contains("tunnel started") || text.contains("router: completed") {
                         let state = app_clone.state::<VpnState>();
                         let mut status_lock = state.status.lock().unwrap();

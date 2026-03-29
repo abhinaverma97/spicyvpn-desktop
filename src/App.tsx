@@ -63,15 +63,16 @@ export default function App() {
     };
   }, []);
 
-  async function fetchStats(link: string) {
-    if (!link.startsWith("http")) return; // Only fetch if it's a sub link
+  async function fetchStatsFromUri(uri: string) {
     try {
-      const res = await invoke<Stats>("fetch_sub_stats", { url: link });
+      const token = uri.split("://")[1]?.split("@")[0];
+      if (!token) return;
+      const subUrl = `https://spicypepper.app/api/sub?token=${token}`;
+      const res = await invoke<Stats>("fetch_sub_stats", { url: subUrl });
       setStats(res);
       setError("");
     } catch (e: any) {
-      console.error(e);
-      setError(e.toString());
+      console.error("Stats fetch error:", e);
     }
   }
 
@@ -83,11 +84,7 @@ export default function App() {
       await store.set("subLink", subLink);
       await store.save();
       setIsEditingLink(false);
-      if (subLink.startsWith("http")) {
-        fetchStats(subLink);
-      } else {
-        setStats(null); // Clear stats for raw links
-      }
+      fetchStatsFromUri(subLink);
     } catch (err: any) {
       setError("Failed to save: " + err.toString());
     }
@@ -125,24 +122,10 @@ export default function App() {
   async function connect() {
     setStatus("connecting");
     setError("");
-    setLogs([]); // Clear logs on new connect
+    setLogs([]); 
     try {
-      // 1. Fetch latest stats if it's a sub link
-      if (subLink.startsWith("http")) {
-        const latestStats = await invoke<Stats>("fetch_sub_stats", { url: subLink });
-        setStats(latestStats);
-
-        const used = latestStats.upload + latestStats.download;
-        const isExpired = latestStats.expire > 0 && latestStats.expire * 1000 < Date.now();
-        const isOutOfData = latestStats.total > 0 && used >= latestStats.total;
-
-        if (isExpired) throw new Error("Subscription Expired");
-        if (isOutOfData) throw new Error("Data Limit Reached");
-      }
-
-      // 2. Start VPN
-      // Status will be updated via 'vpn-status-changed' event from backend
-      await invoke("start_vpn", { url: subLink });
+      await fetchStatsFromUri(subLink);
+      await invoke("start_vpn", { uri: subLink });
     } catch (e: any) {
       setError(e.toString());
       setStatus("disconnected");
@@ -236,9 +219,9 @@ export default function App() {
             <motion.form key="setup" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="w-full max-w-sm flex flex-col gap-6" onSubmit={saveLink}>
               <div className="text-center">
                 <h2 className="text-2xl font-black uppercase italic tracking-tighter">Initialize</h2>
-                <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mt-1">Paste Subscription or Raw URI</p>
+                <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mt-1">Paste Direct URI (hy2://)</p>
               </div>
-              <input type="text" value={subLink} onChange={(e) => setSubLink(e.target.value)} placeholder="https://... or hy2://..." className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-sm outline-none focus:border-white/30 transition-all font-mono placeholder:text-white/10" autoFocus />
+              <input type="text" value={subLink} onChange={(e) => setSubLink(e.target.value)} placeholder="hy2://token@host:port..." className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-sm outline-none focus:border-white/30 transition-all font-mono placeholder:text-white/10" autoFocus />
               {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase p-3 rounded-lg text-center leading-relaxed">{error}</div>}
               <button type="submit" className="w-full bg-white text-black font-black rounded-xl py-4 text-xs uppercase tracking-widest hover:bg-zinc-200 transition-colors">Save Gateway</button>
               <button type="button" onClick={() => invoke("exit_app")} className="text-[10px] font-bold uppercase tracking-widest text-white/20 hover:text-red-400 transition-colors mt-2">Kill Application</button>
