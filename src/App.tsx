@@ -39,7 +39,7 @@ export default function App() {
 
       if (savedLink) {
         setSubLink(savedLink);
-        fetchStats(savedLink);
+        fetchStatsFromUri(savedLink);
       } else {
         setIsEditingLink(true);
       }
