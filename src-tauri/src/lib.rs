@@ -10,9 +10,12 @@ use url::Url;
 
 #[cfg(windows)]
 fn kill_process_by_name(name: &str) {
+    use std::os::windows::process::CommandExt;
     use std::process::Command;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
     let _ = Command::new("taskkill")
         .args(["/F", "/IM", name, "/T"])
+        .creation_flags(CREATE_NO_WINDOW)
         .spawn();
 }
 
@@ -230,6 +233,14 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 }
                 tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
                     let text = String::from_utf8_lossy(&line).into_owned();
+                    
+                    if text.contains("sing-box started") || text.contains("tunnel started") {
+                        let state = app_clone.state::<VpnState>();
+                        let mut status_lock = state.status.lock().unwrap();
+                        *status_lock = "connected".to_string();
+                        let _ = app_clone.emit("vpn-status-changed", "connected");
+                    }
+
                     let state = app_clone.state::<VpnState>();
                     if let Ok(mut lock) = state.logs.lock() {
                         lock.push_str(&text);
