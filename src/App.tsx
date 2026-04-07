@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { load } from "@tauri-apps/plugin-store";
-import { Power, Clock, X, Minus, ScrollText, User as UserIcon, Copy, LogOut, AlertTriangle, Wifi, Settings, RotateCcw } from "lucide-react";
+import { open } from "@tauri-apps/plugin-shell";
+import { Power, Clock, X, Minus, ScrollText, User as UserIcon, Copy, LogOut, AlertTriangle, Wifi, Settings, RotateCcw, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Dither from "./components/Dither";
 
@@ -313,12 +314,25 @@ export default function App() {
               {/* Stats & Info */}
               <div className="w-full space-y-4">
                 {error ? (
-                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg text-center break-words flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5" />
+                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg text-center break-words flex flex-col items-center gap-3">
+                    <div className="flex items-center gap-1.5 font-semibold">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                       <span>{error}</span>
                     </div>
-                    <button onClick={() => setIsEditingLink(true)} className="text-white/40 hover:text-white underline decoration-white/10">Try another link</button>
+                    <div className="flex items-center gap-4 w-full">
+                      <button 
+                        onClick={() => open("https://spicypepper.app/dashboard")} 
+                        className="flex-1 flex justify-center items-center gap-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 py-1.5 rounded-md transition-colors"
+                      >
+                        Renew Plan <ExternalLink className="w-3 h-3" />
+                      </button>
+                      <button 
+                        onClick={() => setIsEditingLink(true)} 
+                        className="flex-1 text-white/40 hover:text-white underline decoration-white/10 transition-colors"
+                      >
+                        Try another link
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <>
