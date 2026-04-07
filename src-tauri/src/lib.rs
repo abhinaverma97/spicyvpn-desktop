@@ -16,7 +16,7 @@ fn kill_process_by_name(name: &str) {
     let _ = Command::new("taskkill")
         .args(["/F", "/IM", name, "/T"])
         .creation_flags(CREATE_NO_WINDOW)
-        .spawn();
+        .output();
 }
 
 struct VpnState {
@@ -33,7 +33,7 @@ fn kill_orphaned_singbox() {
     #[cfg(not(windows))]
     {
         use std::process::Command;
-        let _ = Command::new("pkill").arg("-f").arg("sing-box").spawn();
+        let _ = Command::new("pkill").arg("-f").arg("sing-box").output();
     }
 }
 
