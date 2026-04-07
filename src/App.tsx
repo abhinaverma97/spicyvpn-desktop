@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { load } from "@tauri-apps/plugin-store";
-import { Power, Wifi, Clock, Settings, X, Minus, LogOut, RotateCcw, AlertTriangle, ScrollText, Copy } from "lucide-react";
+import { Power, Clock, X, Minus, ScrollText, User as UserIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Dither from "./components/Dither";
 
@@ -11,6 +11,8 @@ type Stats = {
   download: number;
   total: number;
   expire: number;
+  name?: string;
+  email?: string;
 };
 
 type CloseAction = "quit" | "hide" | null;
@@ -21,10 +23,11 @@ export default function App() {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState("");
-  
+
   // Logs state
   const [logs, setLogs] = useState<string[]>([]);
   const [showLogs, setShowLogs] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
   
   // Close behavior states
   const [showCloseModal, setShowCloseModal] = useState(false);
@@ -339,6 +342,12 @@ export default function App() {
                       </span>
                       <div className="flex gap-4">
                         <button 
+                          onClick={() => setShowAccount(true)}
+                          className="flex items-center gap-1 hover:text-white transition-colors"
+                        >
+                          <UserIcon className="w-3 h-3" /> Account
+                        </button>
+                        <button 
                           onClick={() => setShowLogs(true)}
                           className="flex items-center gap-1 hover:text-white transition-colors"
                         >
@@ -366,6 +375,37 @@ export default function App() {
           )}
         </AnimatePresence>
         )}
+
+        {/* Account Modal */}
+        <AnimatePresence>
+          {showAccount && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 10 }}
+                animate={{ scale: 1, y: 0 }}
+                className="bg-[#0c0c0e] border border-white/10 rounded-2xl p-6 w-full max-w-xs shadow-2xl text-center"
+              >
+                <div className="w-12 h-12 rounded-full bg-white/10 mx-auto flex items-center justify-center mb-4">
+                  <UserIcon className="w-6 h-6 text-white/70" />
+                </div>
+                <h3 className="text-lg font-bold mb-1 truncate">{stats?.name || "Anonymous User"}</h3>
+                <p className="text-xs text-white/40 mb-6 truncate">{stats?.email || "No email available"}</p>
+                
+                <button 
+                  onClick={() => setShowAccount(false)}
+                  className="w-full bg-white/10 hover:bg-white/20 border border-white/10 text-white rounded-xl py-3 text-sm font-semibold transition-colors uppercase tracking-widest"
+                >
+                  Close
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Close Choice Modal */}
         <AnimatePresence>

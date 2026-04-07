@@ -64,11 +64,24 @@ async fn fetch_sub_stats(url: String) -> Result<serde_json::Value, String> {
         .and_then(|v| v.to_str().ok())
         .unwrap_or("upload=0; download=0; total=0; expire=0");
 
+    let b64_name = res.headers().get("x-user-name").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let email = res.headers().get("x-user-email").and_then(|v| v.to_str().ok()).unwrap_or("");
+
+    let mut name = String::new();
+    if !b64_name.is_empty() {
+        use base64::{engine::general_purpose, Engine as _};
+        if let Ok(decoded) = general_purpose::STANDARD.decode(b64_name) {
+            name = String::from_utf8_lossy(&decoded).to_string();
+        }
+    }
+
     let mut stats = serde_json::json!({
         "upload": 0,
         "download": 0,
         "total": 0,
-        "expire": 0
+        "expire": 0,
+        "name": name,
+        "email": email
     });
 
     for part in info.split(';') {
