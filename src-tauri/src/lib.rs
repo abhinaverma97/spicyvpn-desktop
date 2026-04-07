@@ -338,6 +338,12 @@ fn minimize_window(app: AppHandle) {
     }
 }
 
+#[tauri::command]
+fn open_browser(url: String, app: AppHandle) {
+    use tauri_plugin_shell::ShellExt;
+    let _ = app.shell().open(url, None);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -407,7 +413,8 @@ pub fn run() {
             get_vpn_logs,
             exit_app,
             hide_window,
-            minimize_window
+            minimize_window,
+            open_browser
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { load } from "@tauri-apps/plugin-store";
-import { open } from "@tauri-apps/plugin-shell";
-import { Power, Clock, X, Minus, ScrollText, User as UserIcon, Copy, LogOut, AlertTriangle, Wifi, Settings, RotateCcw, ExternalLink } from "lucide-react";
+import { Power, Clock, X, Minus, ScrollText, Copy, LogOut, AlertTriangle, Wifi, Settings, RotateCcw, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Dither from "./components/Dither";
 
@@ -28,7 +27,6 @@ export default function App() {
   // Logs state
   const [logs, setLogs] = useState<string[]>([]);
   const [showLogs, setShowLogs] = useState(false);
-  const [showAccount, setShowAccount] = useState(false);
   
   // Close behavior states
   const [showCloseModal, setShowCloseModal] = useState(false);
@@ -321,7 +319,7 @@ export default function App() {
                     </div>
                     <div className="flex items-center gap-4 w-full">
                       <button 
-                        onClick={() => open("https://spicypepper.app/dashboard")} 
+                        onClick={() => invoke("open_browser", { url: "https://spicypepper.app/dashboard" })} 
                         className="flex-1 flex justify-center items-center gap-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 py-1.5 rounded-md transition-colors"
                       >
                         Renew Plan <ExternalLink className="w-3 h-3" />
