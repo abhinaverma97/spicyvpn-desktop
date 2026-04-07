@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { load } from "@tauri-apps/plugin-store";
-import { Power, Clock, X, Minus, ScrollText, User as UserIcon } from "lucide-react";
+import { Power, Clock, X, Minus, ScrollText, User as UserIcon, Copy, LogOut, AlertTriangle, Wifi, Settings, RotateCcw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Dither from "./components/Dither";
 
