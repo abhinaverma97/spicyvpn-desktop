@@ -53,6 +53,12 @@ async fn fetch_sub_stats(url: String) -> Result<serde_json::Value, String> {
 
     let res = client.get(&url).send().await.map_err(|e| e.to_string())?;
     
+    if !res.status().is_success() {
+        let error_msg = res.text().await.unwrap_or_default();
+        let msg = if error_msg.is_empty() { "Subscription is inactive or expired".to_string() } else { error_msg };
+        return Err(msg);
+    }
+    
     let info = res.headers()
         .get("subscription-userinfo")
         .and_then(|v| v.to_str().ok())
@@ -103,6 +109,13 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let uri = if url.starts_with("http") {
         let client = reqwest::Client::new();
         let res = client.get(&url).send().await.map_err(|e| format!("Failed to fetch sub: {}", e))?;
+        
+        if !res.status().is_success() {
+            let error_msg = res.text().await.unwrap_or_default();
+            let msg = if error_msg.is_empty() { "Subscription is inactive or expired".to_string() } else { error_msg };
+            return Err(msg);
+        }
+
         let b64_body = res.text().await.map_err(|e| format!("Empty sub body: {}", e))?;
         
         use base64::{engine::general_purpose, Engine as _};
