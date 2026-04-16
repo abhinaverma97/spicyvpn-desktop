@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { load } from "@tauri-apps/plugin-store";
-import { Power, Clock, X, Minus, ScrollText, Copy, LogOut, AlertTriangle, Wifi, Settings, RotateCcw, ExternalLink, Gamepad2 } from "lucide-react";
+import { Power, Clock, X, Minus, ScrollText, Copy, LogOut, AlertTriangle, Wifi, Settings, RotateCcw, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Dither from "./components/Dither";
 
@@ -348,13 +348,10 @@ export default function App() {
                   <>
                     <div className="space-y-3">
                       <div 
-                        className={`w-full bg-black/50 border border-white/5 rounded-xl p-4 transition-all relative group ${status !== "disconnected" ? 'opacity-50' : 'hover:border-white/10'}`}
+                        className={`w-full bg-transparent border border-white/5 rounded-xl p-4 transition-all relative group ${status !== "disconnected" ? 'opacity-50' : 'hover:border-white/10'}`}
                       >
                         <div className="flex justify-between items-center mb-1">
                           <div className="flex items-center gap-2">
-                            <div className={`p-1.5 rounded-lg transition-colors ${gamingMode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/5 text-white/40'}`}>
-                              <Gamepad2 className="w-3.5 h-3.5" />
-                            </div>
                             <span className="text-xs font-medium text-white/70">Gaming Mode</span>
                           </div>
                           
@@ -366,7 +363,7 @@ export default function App() {
                             <div className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-all duration-300 ${gamingMode ? 'left-[16px]' : 'left-[2px]'}`} />
                           </button>
                         </div>
-                        <p className="text-[10px] text-white/20 pl-9">Optimized for low-latency gaming only (3Mbps Limit)</p>
+                        <p className="text-[10px] text-white/20">Optimized for low-latency gaming only (3Mbps Limit)</p>
                       </div>
 
                       <div className="bg-black/50 border border-white/5 rounded-xl p-4">
