@@ -37,7 +37,7 @@ jobs:
 
       - name: Download sing-box and wintun
         run: |
-          $sb_version = "1.13.11"
+          $sb_version = "1.13.8"
           Invoke-WebRequest -Uri "https://github.com/SagerNet/sing-box/releases/download/v$sb_version/sing-box-$sb_version-windows-amd64.zip" -OutFile "sing-box.zip"
           Expand-Archive "sing-box.zip" -DestinationPath .
           Move-Item "sing-box-$sb_version-windows-amd64\sing-box.exe" "src-tauri\sing-box-x86_64-pc-windows-msvc.exe"
