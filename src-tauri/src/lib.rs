@@ -162,6 +162,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "server": host,
         "server_port": port,
         "password": auth_user,
+        "bbr_profile": "conservative",
         "tls": {
             "enabled": true,
             "server_name": sni,
@@ -189,7 +190,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "auto_route": true,
                 "strict_route": true,
                 "stack": "gvisor",
-                "mtu": 1350,
+                "mtu": 1280,
                 "sniff": true
             }
         ],
