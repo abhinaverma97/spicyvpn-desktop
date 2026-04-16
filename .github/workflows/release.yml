@@ -29,19 +29,16 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "src-tauri"
-          cache-on-failure: true
-          shared-key: "spicy-vpn-shared-cache"
+          workspaces: "src-tauri -> target"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Download sing-box and wintun
         run: |
-          $sb_version = "1.13.8"
-          Invoke-WebRequest -Uri "https://github.com/SagerNet/sing-box/releases/download/v$sb_version/sing-box-$sb_version-windows-amd64.zip" -OutFile "sing-box.zip"
+          Invoke-WebRequest -Uri "https://github.com/SagerNet/sing-box/releases/download/v1.9.0/sing-box-1.9.0-windows-amd64.zip" -OutFile "sing-box.zip"
           Expand-Archive "sing-box.zip" -DestinationPath .
-          Move-Item "sing-box-$sb_version-windows-amd64\sing-box.exe" "src-tauri\sing-box-x86_64-pc-windows-msvc.exe"
+          Move-Item "sing-box-1.9.0-windows-amd64\sing-box.exe" "src-tauri\sing-box-x86_64-pc-windows-msvc.exe"
           
           Invoke-WebRequest -Uri "https://www.wintun.net/builds/wintun-0.14.1.zip" -OutFile "wintun.zip"
           Expand-Archive "wintun.zip" -DestinationPath .
@@ -49,9 +46,6 @@ jobs:
 
       - name: Build Tauri app
         run: npm run tauri build
-        env:
-          CARGO_INCREMENTAL: 1
-          CI: true
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2

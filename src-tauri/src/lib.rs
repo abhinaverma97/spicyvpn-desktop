@@ -1,3 +1,4 @@
+use serde::Serialize;
 use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
@@ -156,26 +157,15 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let insecure = query.get("insecure").map(|v| v == "1").unwrap_or(false);
 
     // 4. Generate optimized sing-box config
-    let hysteria2_outbound = serde_json::json!({
-        "type": "hysteria2",
-        "tag": "proxy",
-        "server": host,
-        "server_port": port,
-        "password": auth_user,
-        "domain_resolver": "dns-remote",
-        "tls": {
-            "enabled": true,
-            "server_name": sni,
-            "insecure": insecure
-        }
-    });
-
     let config_json = serde_json::json!({
         "log": { "level": "info" },
         "dns": {
             "servers": [
-                { "tag": "dns-remote", "type": "https", "server": "1.1.1.1", "server_port": 443, "path": "/dns-query", "detour": "proxy" },
-                { "tag": "dns-direct", "type": "udp", "server": "8.8.8.8", "server_port": 53, "detour": "direct" }
+                { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" },
+                { "tag": "dns-direct", "address": "8.8.8.8", "detour": "direct" }
+            ],
+            "rules": [
+                { "outbound": "any", "server": "dns-remote" }
             ]
         },
         "inbounds": [
@@ -183,22 +173,34 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "type": "tun",
                 "tag": "tun-in",
                 "interface_name": "SpicyVPN-TUN",
-                "address": ["172.19.0.1/30"],
+                "inet4_address": "172.19.0.1/30",
                 "auto_route": true,
                 "strict_route": true,
                 "stack": "gvisor",
-                "mtu": 1280,
+                "mtu": 1350,
                 "sniff": true
             }
         ],
         "outbounds": [
-            hysteria2_outbound,
-            { "type": "direct", "tag": "direct", "domain_resolver": "dns-direct" }
+            {
+                "type": "hysteria2",
+                "tag": "proxy",
+                "server": host,
+                "server_port": port,
+                "password": auth_user,
+                "tls": {
+                    "enabled": true,
+                    "server_name": sni,
+                    "insecure": insecure
+                }
+            },
+            { "type": "direct", "tag": "direct" },
+            { "type": "dns", "tag": "dns-out" }
         ],
         "route": {
             "auto_detect_interface": true,
             "rules": [
-                { "protocol": "dns", "action": "hijack-dns" },
+                { "protocol": "dns", "outbound": "dns-out" },
                 { "ip_is_private": true, "outbound": "direct" },
                 { "outbound": "direct", "ip_cidr": [host] }
             ],
@@ -279,7 +281,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                     let _ = app_clone.emit("vpn-status-changed", "disconnected");
                     break;
                 }
-                tauri_plugin_shell::process::CommandEvent::Error(_err) => {
+                tauri_plugin_shell::process::CommandEvent::Error(err) => {
                     let state = app_clone.state::<VpnState>();
                     let mut lock = state.status.lock().unwrap();
                     *lock = "disconnected".to_string();
