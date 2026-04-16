@@ -1,4 +1,3 @@
-use serde::Serialize;
 use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
@@ -283,7 +282,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                     let _ = app_clone.emit("vpn-status-changed", "disconnected");
                     break;
                 }
-                tauri_plugin_shell::process::CommandEvent::Error(err) => {
+                tauri_plugin_shell::process::CommandEvent::Error(_err) => {
                     let state = app_clone.state::<VpnState>();
                     let mut lock = state.status.lock().unwrap();
                     *lock = "disconnected".to_string();
