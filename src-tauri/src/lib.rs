@@ -207,7 +207,7 @@ async fn start_vpn(url: String, gaming_mode: bool, app: AppHandle, state: State<
                 "auto_route": true,
                 "strict_route": true,
                 "stack": "gvisor",
-                "mtu": gaming_mode ? 1280 : 1350,
+                "mtu": if gaming_mode { 1280 } else { 1350 },
                 "sniff": true
             }
         ],
