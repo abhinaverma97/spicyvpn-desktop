@@ -36,9 +36,9 @@ jobs:
 
       - name: Download sing-box and wintun
         run: |
-          Invoke-WebRequest -Uri "https://github.com/SagerNet/sing-box/releases/download/v1.9.0/sing-box-1.9.0-windows-amd64.zip" -OutFile "sing-box.zip"
+          Invoke-WebRequest -Uri "https://github.com/SagerNet/sing-box/releases/download/v1.13.8/sing-box-1.13.8-windows-amd64.zip" -OutFile "sing-box.zip"
           Expand-Archive "sing-box.zip" -DestinationPath .
-          Move-Item "sing-box-1.9.0-windows-amd64\sing-box.exe" "src-tauri\sing-box-x86_64-pc-windows-msvc.exe"
+          Move-Item "sing-box-1.13.8-windows-amd64\sing-box.exe" "src-tauri\sing-box-x86_64-pc-windows-msvc.exe"
           
           Invoke-WebRequest -Uri "https://www.wintun.net/builds/wintun-0.14.1.zip" -OutFile "wintun.zip"
           Expand-Archive "wintun.zip" -DestinationPath .
