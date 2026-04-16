@@ -23,7 +23,6 @@ export default function App() {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState("");
-  const [gamingMode, setGamingMode] = useState(false);
 
   // Logs state
   const [logs, setLogs] = useState<string[]>([]);
@@ -39,10 +38,8 @@ export default function App() {
       const store = await load("settings.bin");
       const savedLink = await store.get<string>("subLink");
       const pref = await store.get<CloseAction>("closePreference");
-      const savedGamingMode = await store.get<boolean>("gamingMode");
       
       setClosePreference(pref || null);
-      if (savedGamingMode !== undefined) setGamingMode(savedGamingMode);
 
       if (savedLink) {
         setSubLink(savedLink);
@@ -86,15 +83,6 @@ export default function App() {
       console.error(e);
       setError(e.toString());
     }
-  }
-
-  async function toggleGamingMode() {
-    if (status !== "disconnected") return;
-    const newVal = !gamingMode;
-    setGamingMode(newVal);
-    const store = await load("settings.bin");
-    await store.set("gamingMode", newVal);
-    await store.save();
   }
 
   async function saveLink(e: React.FormEvent) {
@@ -147,7 +135,7 @@ export default function App() {
     setLogs([]);
     try {
       await fetchStats(subLink);
-      await invoke("start_vpn", { url: subLink, gamingMode });
+      await invoke("start_vpn", { url: subLink });
       // Status will be updated via 'vpn-status-changed' event
     } catch (e: any) {
       setError(e.toString());
@@ -346,40 +334,16 @@ export default function App() {
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-3">
-                      <div 
-                        className={`w-full bg-black/50 border border-white/5 rounded-xl p-4 transition-all relative group ${status !== "disconnected" ? 'opacity-50' : 'hover:border-white/10'}`}
-                      >
-                        <div className="flex justify-between items-center mb-1">
-                          <div className="flex items-center gap-2">
-                            <div className={`p-1.5 rounded-lg transition-colors ${gamingMode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/5 text-white/40'}`}>
-                              <Gamepad2 className="w-3.5 h-3.5" />
-                            </div>
-                            <span className="text-xs font-medium text-white/70">Gaming Mode</span>
-                          </div>
-                          
-                          <button 
-                            onClick={toggleGamingMode}
-                            disabled={status !== "disconnected"}
-                            className={`w-8 h-4.5 rounded-full relative transition-all duration-300 outline-none ${gamingMode ? 'bg-emerald-500' : 'bg-white/10'} ${status === "disconnected" ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-                          >
-                            <div className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-all duration-300 ${gamingMode ? 'left-[16px]' : 'left-[2px]'}`} />
-                          </button>
-                        </div>
-                        <p className="text-[10px] text-white/20 pl-9">Optimized for low-latency gaming only</p>
+                    <div className="bg-black/50 border border-white/5 rounded-xl p-4">
+                      <div className="flex justify-between text-xs text-white/50 mb-2">
+                        <span className="flex items-center gap-1.5"><Wifi className="w-3 h-3"/> Data Usage</span>
+                        <span>{stats ? `${formatBytes(usedBytes)} / ${formatBytes(stats.total)}` : 'Loading...'}</span>
                       </div>
-
-                      <div className="bg-black/50 border border-white/5 rounded-xl p-4">
-                        <div className="flex justify-between text-xs text-white/50 mb-2">
-                          <span className="flex items-center gap-1.5"><Wifi className="w-3 h-3"/> Data Usage</span>
-                          <span>{stats ? `${formatBytes(usedBytes)} / ${formatBytes(stats.total)}` : 'Loading...'}</span>
-                        </div>
-                        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-1000 ${usedPct > 80 || isOutOfData ? 'bg-red-500' : 'bg-emerald-500'}`}
-                            style={{ width: `${Math.min(100, usedPct)}%` }}
-                          />
-                        </div>
+                      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-1000 ${usedPct > 80 || isOutOfData ? 'bg-red-500' : 'bg-emerald-500'}`}
+                          style={{ width: `${Math.min(100, usedPct)}%` }}
+                        />
                       </div>
                     </div>
 

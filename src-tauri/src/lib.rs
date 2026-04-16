@@ -102,7 +102,7 @@ async fn fetch_sub_stats(url: String) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-async fn start_vpn(url: String, gaming_mode: bool, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
+async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
     // 1. Cleanup old instances
     {
         let mut lock = state.child.lock().unwrap();
@@ -156,7 +156,7 @@ async fn start_vpn(url: String, gaming_mode: bool, app: AppHandle, state: State<
     let insecure = query.get("insecure").map(|v| v == "1").unwrap_or(false);
 
     // 4. Generate optimized sing-box config
-    let mut hysteria2_outbound = serde_json::json!({
+    let hysteria2_outbound = serde_json::json!({
         "type": "hysteria2",
         "tag": "proxy",
         "server": host,
@@ -168,11 +168,6 @@ async fn start_vpn(url: String, gaming_mode: bool, app: AppHandle, state: State<
             "insecure": insecure
         }
     });
-
-    if gaming_mode {
-        hysteria2_outbound["up_mbps"] = serde_json::json!(1);
-        hysteria2_outbound["down_mbps"] = serde_json::json!(3);
-    }
 
     let config_json = serde_json::json!({
         "log": { "level": "info" },
