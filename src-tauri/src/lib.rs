@@ -195,13 +195,12 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         ],
         "outbounds": [
             hysteria2_outbound,
-            { "type": "direct", "tag": "direct" },
-            { "type": "dns", "tag": "dns-out" }
+            { "type": "direct", "tag": "direct" }
         ],
         "route": {
             "auto_detect_interface": true,
             "rules": [
-                { "protocol": "dns", "outbound": "dns-out" },
+                { "protocol": "dns", "action": "hijack-dns" },
                 { "ip_is_private": true, "outbound": "direct" },
                 { "outbound": "direct", "ip_cidr": [host] }
             ],
