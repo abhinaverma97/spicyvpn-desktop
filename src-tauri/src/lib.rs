@@ -162,6 +162,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "server": host,
         "server_port": port,
         "password": auth_user,
+        "domain_resolver": "dns-remote",
         "tls": {
             "enabled": true,
             "server_name": sni,
@@ -175,9 +176,6 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             "servers": [
                 { "tag": "dns-remote", "type": "https", "server": "1.1.1.1", "server_port": 443, "path": "/dns-query", "detour": "proxy" },
                 { "tag": "dns-direct", "type": "udp", "server": "8.8.8.8", "server_port": 53, "detour": "direct" }
-            ],
-            "rules": [
-                { "outbound": "any", "server": "dns-remote" }
             ]
         },
         "inbounds": [
@@ -195,7 +193,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         ],
         "outbounds": [
             hysteria2_outbound,
-            { "type": "direct", "tag": "direct" }
+            { "type": "direct", "tag": "direct", "domain_resolver": "dns-direct" }
         ],
         "route": {
             "auto_detect_interface": true,
