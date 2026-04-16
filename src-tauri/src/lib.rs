@@ -170,8 +170,8 @@ async fn start_vpn(url: String, gaming_mode: bool, app: AppHandle, state: State<
     });
 
     if gaming_mode {
-        hysteria2_outbound["up_mbps"] = serde_json::json!(0.8);
-        hysteria2_outbound["down_mbps"] = serde_json::json!(2.5);
+        hysteria2_outbound["up_mbps"] = serde_json::json!(1);
+        hysteria2_outbound["down_mbps"] = serde_json::json!(3);
     }
 
     let config_json = serde_json::json!({

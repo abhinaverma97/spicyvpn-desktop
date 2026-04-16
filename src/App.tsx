@@ -347,22 +347,27 @@ export default function App() {
                 ) : (
                   <>
                     <div className="space-y-3">
-                      <button 
-                        onClick={toggleGamingMode}
-                        disabled={status !== "disconnected"}
-                        className={`w-full bg-black/50 border border-white/5 rounded-xl p-4 transition-all text-left group ${status !== "disconnected" ? 'opacity-50 cursor-not-allowed' : 'hover:border-white/10 active:scale-[0.99] cursor-pointer'}`}
+                      <div 
+                        className={`w-full bg-black/50 border border-white/5 rounded-xl p-4 transition-all relative group ${status !== "disconnected" ? 'opacity-50' : 'hover:border-white/10'}`}
                       >
-                        <div className="flex justify-between items-center text-xs text-white/50 mb-1">
-                          <span className="flex items-center gap-1.5 group-hover:text-white/70 transition-colors">
-                            <Gamepad2 className={`w-3.5 h-3.5 ${gamingMode ? 'text-emerald-400' : ''}`} /> 
-                            Gaming Mode
-                          </span>
-                          <div className={`w-7 h-3.5 rounded-full relative transition-colors ${gamingMode ? 'bg-emerald-500' : 'bg-white/10'}`}>
-                            <div className={`absolute top-0.5 bottom-0.5 w-2.5 rounded-full bg-white transition-all ${gamingMode ? 'right-0.5' : 'left-0.5'}`} />
+                        <div className="flex justify-between items-center mb-1">
+                          <div className="flex items-center gap-2">
+                            <div className={`p-1.5 rounded-lg transition-colors ${gamingMode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/5 text-white/40'}`}>
+                              <Gamepad2 className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-xs font-medium text-white/70">Gaming Mode</span>
                           </div>
+                          
+                          <button 
+                            onClick={toggleGamingMode}
+                            disabled={status !== "disconnected"}
+                            className={`w-8 h-4.5 rounded-full relative transition-all duration-300 outline-none ${gamingMode ? 'bg-emerald-500' : 'bg-white/10'} ${status === "disconnected" ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                          >
+                            <div className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-all duration-300 ${gamingMode ? 'left-[16px]' : 'left-[2px]'}`} />
+                          </button>
                         </div>
-                        <p className="text-[10px] text-white/20 italic">Use only for gaming — optimizes for low latency</p>
-                      </button>
+                        <p className="text-[10px] text-white/20 pl-9">Optimized for low-latency gaming only</p>
+                      </div>
 
                       <div className="bg-black/50 border border-white/5 rounded-xl p-4">
                         <div className="flex justify-between text-xs text-white/50 mb-2">
