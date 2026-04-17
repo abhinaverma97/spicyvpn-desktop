@@ -23,6 +23,11 @@ export default function App() {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState("");
+  
+  // Brutal Mode settings
+  const [brutalMode, setBrutalMode] = useState(false);
+  const [upMbps, setUpMbps] = useState(1);
+  const [downMbps, setDownMbps] = useState(3);
 
   // Logs state
   const [logs, setLogs] = useState<string[]>([]);
@@ -38,8 +43,14 @@ export default function App() {
       const store = await load("settings.bin");
       const savedLink = await store.get<string>("subLink");
       const pref = await store.get<CloseAction>("closePreference");
+      const savedBrutal = await store.get<boolean>("brutalMode");
+      const savedUp = await store.get<number>("upMbps");
+      const savedDown = await store.get<number>("downMbps");
       
       setClosePreference(pref || null);
+      if (savedBrutal !== undefined) setBrutalMode(savedBrutal);
+      if (savedUp !== undefined) setUpMbps(savedUp);
+      if (savedDown !== undefined) setDownMbps(savedDown);
 
       if (savedLink) {
         setSubLink(savedLink);
@@ -54,7 +65,7 @@ export default function App() {
     loadSettings();
 
     const unlistenLogs = listen<string>("vpn-log", (event) => {
-      setLogs((prev) => [...prev, event.payload].slice(-200)); // Keep last 200 lines
+      setLogs((prev) => [...prev, event.payload].slice(-200)); 
     });
 
     const unlistenStatus = listen<string>("vpn-status-changed", (event) => {
@@ -83,6 +94,22 @@ export default function App() {
       console.error(e);
       setError(e.toString());
     }
+  }
+
+  async function updateBrutal(val: boolean) {
+    setBrutalMode(val);
+    const store = await load("settings.bin");
+    await store.set("brutalMode", val);
+    await store.save();
+  }
+
+  async function updateSpeeds(up: number, down: number) {
+    setUpMbps(up);
+    setDownMbps(down);
+    const store = await load("settings.bin");
+    await store.set("upMbps", up);
+    await store.set("downMbps", down);
+    await store.save();
   }
 
   async function saveLink(e: React.FormEvent) {
@@ -135,8 +162,12 @@ export default function App() {
     setLogs([]);
     try {
       await fetchStats(subLink);
-      await invoke("start_vpn", { url: subLink });
-      // Status will be updated via 'vpn-status-changed' event
+      await invoke("start_vpn", { 
+        url: subLink, 
+        brutalMode, 
+        upMbps: Math.floor(upMbps), 
+        downMbps: Math.floor(downMbps) 
+      });
     } catch (e: any) {
       setError(e.toString());
       setStatus("disconnected");
@@ -334,16 +365,44 @@ export default function App() {
                   </div>
                 ) : (
                   <>
-                    <div className="bg-black/50 border border-white/5 rounded-xl p-4">
-                      <div className="flex justify-between text-xs text-white/50 mb-2">
-                        <span className="flex items-center gap-1.5"><Wifi className="w-3 h-3"/> Data Usage</span>
-                        <span>{stats ? `${formatBytes(usedBytes)} / ${formatBytes(stats.total)}` : 'Loading...'}</span>
+                    <div className="space-y-3">
+                      {/* Brutal Mode Toggle */}
+                      <div className={`w-full bg-transparent border border-white/5 rounded-xl p-4 transition-all relative group ${status !== "disconnected" ? 'opacity-50' : 'hover:border-white/10'}`}>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs font-medium text-white/70">Brutal Mode</span>
+                          <button 
+                            onClick={() => updateBrutal(!brutalMode)}
+                            disabled={status !== "disconnected"}
+                            className={`w-8 h-4.5 rounded-full relative transition-all duration-300 ${brutalMode ? 'bg-orange-500' : 'bg-white/10'} ${status === "disconnected" ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                          >
+                            <div className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-all duration-300 ${brutalMode ? 'left-[16px]' : 'left-[2px]'}`} />
+                          </button>
+                        </div>
+                        {brutalMode && (
+                          <div className="flex gap-3 pt-2">
+                            <div className="flex-1">
+                              <label className="text-[9px] text-white/30 uppercase block mb-1">Download (Mbps)</label>
+                              <input type="number" value={downMbps} onChange={(e) => updateSpeeds(upMbps, parseInt(e.target.value) || 0)} disabled={status !== "disconnected"} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs outline-none focus:border-orange-500/50" />
+                            </div>
+                            <div className="flex-1">
+                              <label className="text-[9px] text-white/30 uppercase block mb-1">Upload (Mbps)</label>
+                              <input type="number" value={upMbps} onChange={(e) => updateSpeeds(parseInt(e.target.value) || 0, downMbps)} disabled={status !== "disconnected"} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs outline-none focus:border-orange-500/50" />
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full transition-all duration-1000 ${usedPct > 80 || isOutOfData ? 'bg-red-500' : 'bg-emerald-500'}`}
-                          style={{ width: `${Math.min(100, usedPct)}%` }}
-                        />
+
+                      <div className="bg-black/50 border border-white/5 rounded-xl p-4">
+                        <div className="flex justify-between text-xs text-white/50 mb-2">
+                          <span className="flex items-center gap-1.5"><Wifi className="w-3 h-3"/> Data Usage</span>
+                          <span>{stats ? `${formatBytes(usedBytes)} / ${formatBytes(stats.total)}` : 'Loading...'}</span>
+                        </div>
+                        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-1000 ${usedPct > 80 || isOutOfData ? 'bg-red-500' : 'bg-emerald-500'}`}
+                            style={{ width: `${Math.min(100, usedPct)}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
 

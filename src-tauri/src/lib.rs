@@ -103,7 +103,7 @@ async fn fetch_sub_stats(url: String) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
+async fn start_vpn(url: String, brutal_mode: bool, up_mbps: i32, down_mbps: i32, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
     // 1. Cleanup old instances
     {
         let mut lock = state.child.lock().unwrap();
@@ -157,6 +157,24 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let insecure = query.get("insecure").map(|v| v == "1").unwrap_or(false);
 
     // 4. Generate optimized sing-box config
+    let mut hysteria2_outbound = serde_json::json!({
+        "type": "hysteria2",
+        "tag": "proxy",
+        "server": host,
+        "server_port": port,
+        "password": auth_user,
+        "tls": {
+            "enabled": true,
+            "server_name": sni,
+            "insecure": insecure
+        }
+    });
+
+    if brutal_mode {
+        hysteria2_outbound["up_mbps"] = serde_json::json!(up_mbps);
+        hysteria2_outbound["down_mbps"] = serde_json::json!(down_mbps);
+    }
+
     let config_json = serde_json::json!({
         "log": { "level": "info" },
         "dns": {
@@ -182,18 +200,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             }
         ],
         "outbounds": [
-            {
-                "type": "hysteria2",
-                "tag": "proxy",
-                "server": host,
-                "server_port": port,
-                "password": auth_user,
-                "tls": {
-                    "enabled": true,
-                    "server_name": sni,
-                    "insecure": insecure
-                }
-            },
+            hysteria2_outbound,
             { "type": "direct", "tag": "direct" },
             { "type": "dns", "tag": "dns-out" }
         ],
@@ -281,7 +288,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                     let _ = app_clone.emit("vpn-status-changed", "disconnected");
                     break;
                 }
-                tauri_plugin_shell::process::CommandEvent::Error(err) => {
+                tauri_plugin_shell::process::CommandEvent::Error(_) => {
                     let state = app_clone.state::<VpnState>();
                     let mut lock = state.status.lock().unwrap();
                     *lock = "disconnected".to_string();
