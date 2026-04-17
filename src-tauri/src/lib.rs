@@ -104,24 +104,13 @@ async fn fetch_sub_stats(url: String) -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 async fn start_vpn(url: String, brutal_mode: bool, up_mbps: i32, down_mbps: i32, app: AppHandle, state: State<'_, VpnState>) -> Result<(), String> {
-    // 1. Cleanup old instances and QoS policies
+    // 1. Cleanup old instances
     {
         let mut lock = state.child.lock().unwrap();
         if let Some(child) = lock.take() {
             let _ = child.kill();
         }
         kill_orphaned_singbox();
-        
-        #[cfg(windows)]
-        {
-            use std::process::Command;
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            let _ = Command::new("powershell")
-                .args(["-Command", "Remove-NetQosPolicy -Name 'SpicyVPNGaming' -ErrorAction SilentlyContinue"])
-                .creation_flags(CREATE_NO_WINDOW)
-                .output();
-        }
     }
     
     {
@@ -174,7 +163,6 @@ async fn start_vpn(url: String, brutal_mode: bool, up_mbps: i32, down_mbps: i32,
         "server": host,
         "server_port": port,
         "password": auth_user,
-        "domain_resolver": "dns-remote",
         "tls": {
             "enabled": true,
             "server_name": sni,
@@ -185,16 +173,17 @@ async fn start_vpn(url: String, brutal_mode: bool, up_mbps: i32, down_mbps: i32,
     if brutal_mode {
         hysteria2_outbound["up_mbps"] = serde_json::json!(up_mbps);
         hysteria2_outbound["down_mbps"] = serde_json::json!(down_mbps);
-    } else {
-        hysteria2_outbound["bbr_profile"] = serde_json::json!("conservative");
     }
 
     let config_json = serde_json::json!({
         "log": { "level": "info" },
         "dns": {
             "servers": [
-                { "tag": "dns-remote", "type": "https", "server": "1.1.1.1", "server_port": 443, "path": "/dns-query", "detour": "proxy" },
-                { "tag": "dns-direct", "type": "udp", "server": "8.8.8.8", "server_port": 53, "detour": "direct" }
+                { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" },
+                { "tag": "dns-direct", "address": "8.8.8.8", "detour": "direct" }
+            ],
+            "rules": [
+                { "outbound": "any", "server": "dns-remote" }
             ]
         },
         "inbounds": [
@@ -206,18 +195,19 @@ async fn start_vpn(url: String, brutal_mode: bool, up_mbps: i32, down_mbps: i32,
                 "auto_route": true,
                 "strict_route": true,
                 "stack": "gvisor",
-                "mtu": brutal_mode ? 1100 : 1280,
+                "mtu": 1350,
                 "sniff": true
             }
         ],
         "outbounds": [
             hysteria2_outbound,
-            { "type": "direct", "tag": "direct", "domain_resolver": "dns-direct" }
+            { "type": "direct", "tag": "direct" },
+            { "type": "dns", "tag": "dns-out" }
         ],
         "route": {
             "auto_detect_interface": true,
             "rules": [
-                { "protocol": "dns", "action": "hijack-dns" },
+                { "protocol": "dns", "outbound": "dns-out" },
                 { "ip_is_private": true, "outbound": "direct" },
                 { "outbound": "direct", "ip_cidr": [host] }
             ],
@@ -233,23 +223,7 @@ async fn start_vpn(url: String, brutal_mode: bool, up_mbps: i32, down_mbps: i32,
     let config_path = app_dir.join("sing-box-v12.json");
     std::fs::write(&config_path, config_json.to_string()).map_err(|e| e.to_string())?;
 
-    // 5. Apply Gaming Mode OS-level tweaks (Windows QoS)
-    if brutal_mode {
-        #[cfg(windows)]
-        {
-            use std::process::Command;
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            let throttle_kb = (down_mbps as f64 * 125.0) as u32;
-            let qos_cmd = format!("New-NetQosPolicy -Name 'SpicyVPNGaming' -AppPathNameMatchCondition 'sing-box-x86_64-pc-windows-msvc.exe' -ThrottleRateActionBytesPerSecond {}KB -DSCPAction 46 -PolicyStore ActiveStore", throttle_kb);
-            let _ = Command::new("powershell")
-                .args(["-Command", &qos_cmd])
-                .creation_flags(CREATE_NO_WINDOW)
-                .output();
-        }
-    }
-
-    // 6. Spawn process and monitor logs
+    // 5. Spawn process and monitor logs
     let (mut rx, child) = app
         .shell()
         .sidecar("sing-box")
@@ -275,6 +249,7 @@ async fn start_vpn(url: String, brutal_mode: bool, up_mbps: i32, down_mbps: i32,
                 tauri_plugin_shell::process::CommandEvent::Stdout(line) => {
                     let text = String::from_utf8_lossy(&line).into_owned();
                     
+                    // Robust connection check
                     if text.contains("sing-box started") || text.contains("tunnel started") {
                         let state = app_clone.state::<VpnState>();
                         let mut status_lock = state.status.lock().unwrap();
@@ -313,7 +288,7 @@ async fn start_vpn(url: String, brutal_mode: bool, up_mbps: i32, down_mbps: i32,
                     let _ = app_clone.emit("vpn-status-changed", "disconnected");
                     break;
                 }
-                tauri_plugin_shell::process::CommandEvent::Error(err) => {
+                tauri_plugin_shell::process::CommandEvent::Error(_) => {
                     let state = app_clone.state::<VpnState>();
                     let mut lock = state.status.lock().unwrap();
                     *lock = "disconnected".to_string();
@@ -337,17 +312,6 @@ fn stop_vpn(state: State<'_, VpnState>) {
     kill_orphaned_singbox();
     let mut status_lock = state.status.lock().unwrap();
     *status_lock = "disconnected".to_string();
-    
-    #[cfg(windows)]
-    {
-        use std::process::Command;
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let _ = Command::new("powershell")
-            .args(["-Command", "Remove-NetQosPolicy -Name 'SpicyVPNGaming' -ErrorAction SilentlyContinue"])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output();
-    }
 }
 
 #[tauri::command]
@@ -370,17 +334,6 @@ fn exit_app(app: AppHandle, state: State<'_, VpnState>) {
             let _ = child.kill();
         }
         kill_orphaned_singbox();
-        
-        #[cfg(windows)]
-        {
-            use std::process::Command;
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            let _ = Command::new("powershell")
-                .args(["-Command", "Remove-NetQosPolicy -Name 'SpicyVPNGaming' -ErrorAction SilentlyContinue"])
-                .creation_flags(CREATE_NO_WINDOW)
-                .output();
-        }
     }
     app.exit(0);
 }
