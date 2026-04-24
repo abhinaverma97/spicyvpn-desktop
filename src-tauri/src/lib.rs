@@ -167,6 +167,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "server_port": port,
         "uuid": auth_info,
         "packet_encoding": "xudp",
+        "domain_resolver": "dns-remote",
         "multiplex": {
             "enabled": true,
             "protocol": "smux"
@@ -190,11 +191,8 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "log": { "level": "info" },
         "dns": {
             "servers": [
-                { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" },
-                { "tag": "dns-direct", "address": "8.8.8.8", "detour": "direct" }
-            ],
-            "rules": [
-                { "outbound": "any", "server": "dns-remote" }
+                { "tag": "dns-remote", "type": "https", "server": "1.1.1.1", "server_port": 443, "path": "/dns-query", "detour": "proxy" },
+                { "tag": "dns-direct", "type": "udp", "server": "8.8.8.8", "server_port": 53, "detour": "direct" }
             ]
         },
         "inbounds": [
@@ -206,19 +204,18 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "auto_route": true,
                 "strict_route": true,
                 "stack": "gvisor",
-                "mtu": 1350,
+                "mtu": 1280,
                 "sniff": true
             }
         ],
         "outbounds": [
             outbound,
-            { "type": "direct", "tag": "direct" },
-            { "type": "dns", "tag": "dns-out" }
+            { "type": "direct", "tag": "direct", "domain_resolver": "dns-direct" }
         ],
         "route": {
             "auto_detect_interface": true,
             "rules": [
-                { "protocol": "dns", "outbound": "dns-out" },
+                { "protocol": "dns", "action": "hijack-dns" },
                 { "ip_is_private": true, "outbound": "direct" },
                 { "outbound": "direct", "ip_cidr": [host] }
             ],
