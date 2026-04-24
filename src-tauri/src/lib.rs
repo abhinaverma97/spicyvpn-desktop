@@ -167,6 +167,10 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "server_port": port,
         "uuid": auth_info,
         "packet_encoding": "xudp",
+        "multiplex": {
+            "enabled": true,
+            "protocol": "smux"
+        },
         "tls": {
             "enabled": true,
             "server_name": sni,
