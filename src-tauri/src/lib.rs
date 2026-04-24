@@ -144,6 +144,10 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let parsed_url = Url::parse(&uri).map_err(|e| format!("Invalid URI format: {}", e))?;
     let scheme = parsed_url.scheme();
     
+    if scheme != "vless" {
+        return Err(format!("Unsupported protocol '{}'. Please use VLESS.", scheme));
+    }
+
     let host = parsed_url.host_str().unwrap_or("140.245.13.64").to_string();
     let port = parsed_url.port().unwrap_or(443);
     let auth_info = parsed_url.username().to_string();
@@ -152,48 +156,31 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let sni = query.get("sni").cloned().unwrap_or(host.clone());
     let insecure = query.get("insecure").map(|v| v == "1").unwrap_or(false);
 
-    // 4. Generate optimized sing-box config based on protocol
-    let outbound = if scheme == "hy2" || scheme == "dhv2" {
-        serde_json::json!({
-            "type": "hysteria2",
-            "tag": "proxy",
-            "server": host,
-            "server_port": port,
-            "password": auth_info,
-            "tls": {
+    // 4. Generate optimized sing-box config for VLESS + gRPC
+    let transport_type = query.get("type").cloned().unwrap_or("grpc".to_string());
+    let service_name = query.get("serviceName").cloned().unwrap_or("spicypepper-grpc".to_string());
+    
+    let outbound = serde_json::json!({
+        "type": "vless",
+        "tag": "proxy",
+        "server": host,
+        "server_port": port,
+        "uuid": auth_info,
+        "packet_encoding": "xudp",
+        "tls": {
+            "enabled": true,
+            "server_name": sni,
+            "insecure": insecure,
+            "utls": {
                 "enabled": true,
-                "server_name": sni,
-                "insecure": insecure
+                "fingerprint": "chrome"
             }
-        })
-    } else if scheme == "vless" {
-        let transport_type = query.get("type").cloned().unwrap_or("grpc".to_string());
-        let service_name = query.get("serviceName").cloned().unwrap_or("spicypepper-grpc".to_string());
-        
-        serde_json::json!({
-            "type": "vless",
-            "tag": "proxy",
-            "server": host,
-            "server_port": port,
-            "uuid": auth_info,
-            "packet_encoding": "xudp",
-            "tls": {
-                "enabled": true,
-                "server_name": sni,
-                "insecure": insecure,
-                "utls": {
-                    "enabled": true,
-                    "fingerprint": "chrome"
-                }
-            },
-            "transport": {
-                "type": transport_type,
-                "service_name": service_name
-            }
-        })
-    } else {
-        return Err(format!("Unsupported protocol '{}'. Please use Hysteria 2 or VLESS.", scheme));
-    };
+        },
+        "transport": {
+            "type": transport_type,
+            "service_name": service_name
+        }
+    });
 
     let config_json = serde_json::json!({
         "log": { "level": "info" },
