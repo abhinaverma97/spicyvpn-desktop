@@ -167,11 +167,14 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "server_port": port,
         "uuid": auth_info,
         "packet_encoding": "xudp",
-        "domain_resolver": "dns-remote",
         "tls": {
             "enabled": true,
             "server_name": sni,
-            "alpn": ["h2"]
+            "insecure": insecure,
+            "utls": {
+                "enabled": true,
+                "fingerprint": "chrome"
+            }
         },
         "transport": {
             "type": transport_type,
@@ -185,8 +188,11 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "log": { "level": "info" },
         "dns": {
             "servers": [
-                { "tag": "dns-remote", "type": "https", "server": "1.1.1.1", "server_port": 443, "detour": "proxy" },
-                { "tag": "dns-direct", "type": "udp", "server": "8.8.8.8", "server_port": 53, "detour": "direct" }
+                { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" },
+                { "tag": "dns-direct", "address": "8.8.8.8", "detour": "direct" }
+            ],
+            "rules": [
+                { "outbound": "any", "server": "dns-remote" }
             ]
         },
         "inbounds": [
@@ -198,18 +204,19 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "auto_route": true,
                 "strict_route": true,
                 "stack": "gvisor",
-                "mtu": 1280,
+                "mtu": 1350,
                 "sniff": true
             }
         ],
         "outbounds": [
             outbound,
-            { "type": "direct", "tag": "direct", "domain_resolver": "dns-direct" }
+            { "type": "direct", "tag": "direct" },
+            { "type": "dns", "tag": "dns-out" }
         ],
         "route": {
             "auto_detect_interface": true,
             "rules": [
-                { "protocol": "dns", "action": "hijack-dns" },
+                { "protocol": "dns", "outbound": "dns-out" },
                 { "ip_is_private": true, "outbound": "direct" },
                 { "outbound": "direct", "ip_cidr": [host] }
             ],
@@ -230,6 +237,8 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         .shell()
         .sidecar("sing-box")
         .map_err(|e| e.to_string())?
+        .env("ENABLE_DEPRECATED_LEGACY_DNS_SERVERS", "true")
+        .env("ENABLE_DEPRECATED_OUTBOUND_DNS_RULE_ITEM", "true")
         .args(["run", "-c", config_path.to_str().unwrap()])
         .spawn()
         .map_err(|e| e.to_string())?;
