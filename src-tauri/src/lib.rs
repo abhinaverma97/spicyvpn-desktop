@@ -1,4 +1,3 @@
-use serde::Serialize;
 use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
@@ -84,7 +83,7 @@ async fn fetch_sub_stats(url: String) -> Result<serde_json::Value, String> {
         "email": email
     });
 
-    for part in info.split(';'); {
+    for part in info.split(';') {
         let kv: Vec<&str> = part.split('=').map(|s| s.trim()).collect();
         if kv.len() == 2 {
             if let Ok(val) = kv[1].parse::<u64>() {
