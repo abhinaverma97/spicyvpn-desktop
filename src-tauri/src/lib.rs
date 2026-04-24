@@ -84,7 +84,7 @@ async fn fetch_sub_stats(url: String) -> Result<serde_json::Value, String> {
         "email": email
     });
 
-    for part in info.split(';') {
+    for part in info.split(';'); {
         let kv: Vec<&str> = part.split('=').map(|s| s.trim()).collect();
         if kv.len() == 2 {
             if let Ok(val) = kv[1].parse::<u64>() {
@@ -142,67 +142,11 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
 
     // 3. Parse the URI
     let parsed_url = Url::parse(&uri).map_err(|e| format!("Invalid URI format: {}", e))?;
-    let scheme = parsed_url.scheme();
-    
-    if scheme != "vless" {
-        return Err(format!("Unsupported protocol '{}'. Please use VLESS.", scheme));
-    }
+    let uuid = parsed_url.username().to_string();
+    let host = "140.245.13.64";
+    let port = 8444;
 
-    let host = parsed_url.host_str().unwrap_or("140.245.13.64").to_string();
-    let port = parsed_url.port().unwrap_or(443);
-    let auth_info = parsed_url.username().to_string();
-    
-    let query: std::collections::HashMap<_, _> = parsed_url.query_pairs().into_owned().collect();
-    let sni = query.get("sni").cloned().unwrap_or(host.clone());
-    let insecure = query.get("insecure").map(|v| v == "1").unwrap_or(false);
-
-    // 4. Generate optimized sing-box config for VLESS
-    let transport_type = query.get("type").cloned().unwrap_or("grpc".to_string());
-    
-    let mut tls = serde_json::json!({
-        "enabled": true,
-        "server_name": sni,
-        "insecure": insecure,
-        "utls": {
-            "enabled": true,
-            "fingerprint": "chrome"
-        }
-    });
-
-    if let Some(alpn) = query.get("alpn") {
-        tls["alpn"] = serde_json::json!(vec![alpn.clone()]);
-    }
-
-    let mut transport = serde_json::json!({
-        "type": transport_type
-    });
-
-    if transport_type == "grpc" {
-        let service_name = query.get("serviceName").cloned().unwrap_or("spicypepper-grpc".to_string());
-        transport["service_name"] = serde_json::json!(service_name);
-        transport["idle_timeout"] = serde_json::json!("15s");
-        transport["ping_timeout"] = serde_json::json!("15s");
-    } else {
-        if let Some(host) = query.get("host") {
-            // Some newer sing-box/xray cores use 'host' for xhttp/http modes
-            transport["host"] = serde_json::json!(vec![host.clone()]);
-        }
-        if let Some(path) = query.get("path") {
-            transport["path"] = serde_json::json!(path.clone());
-        }
-    }
-
-    let outbound = serde_json::json!({
-        "type": "vless",
-        "tag": "proxy",
-        "server": host,
-        "server_port": port,
-        "uuid": auth_info,
-        "packet_encoding": "xudp",
-        "tls": tls,
-        "transport": transport
-    });
-
+    // 4. Generate optimized sing-box config for VLESS + gRPC (Legacy Format)
     let config_json = serde_json::json!({
         "log": { "level": "info" },
         "dns": {
@@ -228,7 +172,25 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             }
         ],
         "outbounds": [
-            outbound,
+            {
+                "type": "vless",
+                "tag": "proxy",
+                "server": host,
+                "server_port": port,
+                "uuid": uuid,
+                "packet_encoding": "xudp",
+                "tls": {
+                    "enabled": true,
+                    "server_name": "spicypepper.app",
+                    "alpn": ["h2"]
+                },
+                "transport": {
+                    "type": "grpc",
+                    "service_name": "spicypepper-grpc",
+                    "idle_timeout": "15s",
+                    "ping_timeout": "15s"
+                }
+            },
             { "type": "direct", "tag": "direct" },
             { "type": "dns", "tag": "dns-out" }
         ],
