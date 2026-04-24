@@ -23,9 +23,6 @@ export default function App() {
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState("");
-  
-  // Gaming Mode settings
-  const [gamingMode, setGamingMode] = useState(false);
 
   // Logs state
   const [logs, setLogs] = useState<string[]>([]);
@@ -41,10 +38,8 @@ export default function App() {
       const store = await load("settings.bin");
       const savedLink = await store.get<string>("subLink");
       const pref = await store.get<CloseAction>("closePreference");
-      const savedGaming = await store.get<boolean>("gamingMode");
       
       setClosePreference(pref || null);
-      if (savedGaming !== undefined) setGamingMode(savedGaming);
 
       if (savedLink) {
         setSubLink(savedLink);
@@ -74,7 +69,7 @@ export default function App() {
 
   async function fetchStats(link: string) {
     let targetUrl = link;
-    if (link.startsWith("hy2://") || link.startsWith("dhv2://")) {
+    if (link.startsWith("hy2://") || link.startsWith("dhv2://") || link.startsWith("vless://")) {
       const token = link.split("://")[1]?.split("@")[0];
       if (!token) return;
       targetUrl = `https://spicypepper.app/api/sub?token=${token}`;
@@ -88,14 +83,6 @@ export default function App() {
       console.error(e);
       setError(e.toString());
     }
-  }
-
-  async function updateGaming(val: boolean) {
-    if (status !== "disconnected") return;
-    setGamingMode(val);
-    const store = await load("settings.bin");
-    await store.set("gamingMode", val);
-    await store.save();
   }
 
   async function saveLink(e: React.FormEvent) {
@@ -148,12 +135,7 @@ export default function App() {
     setLogs([]);
     try {
       await fetchStats(subLink);
-      await invoke("start_vpn", { 
-        url: subLink, 
-        brutalMode: gamingMode, 
-        upMbps: 2, 
-        downMbps: 2 
-      });
+      await invoke("start_vpn", { url: subLink });
     } catch (e: any) {
       setError(e.toString());
       setStatus("disconnected");
@@ -351,32 +333,16 @@ export default function App() {
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-3">
-                      {/* Gaming Mode Toggle */}
-                      <div className={`w-full bg-transparent p-4 transition-all relative group ${status !== "disconnected" ? 'opacity-50' : ''}`}>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-medium text-white/70">Gaming Mode</span>
-                          <button 
-                            onClick={() => updateGaming(!gamingMode)}
-                            disabled={status !== "disconnected"}
-                            className={`w-8 h-4.5 rounded-full relative transition-all duration-300 ${gamingMode ? 'bg-orange-500' : 'bg-white/10'} ${status === "disconnected" ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-                          >
-                            <div className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-all duration-300 ${gamingMode ? 'left-[16px]' : 'left-[2px]'}`} />
-                          </button>
-                        </div>
+                    <div className="bg-black/50 border border-white/5 rounded-xl p-4">
+                      <div className="flex justify-between text-xs text-white/50 mb-2">
+                        <span className="flex items-center gap-1.5"><Wifi className="w-3 h-3"/> Data Usage</span>
+                        <span>{stats ? `${formatBytes(usedBytes)} / ${formatBytes(stats.total)}` : 'Loading...'}</span>
                       </div>
-
-                      <div className="bg-black/50 border border-white/5 rounded-xl p-4">
-                        <div className="flex justify-between text-xs text-white/50 mb-2">
-                          <span className="flex items-center gap-1.5"><Wifi className="w-3 h-3"/> Data Usage</span>
-                          <span>{stats ? `${formatBytes(usedBytes)} / ${formatBytes(stats.total)}` : 'Loading...'}</span>
-                        </div>
-                        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-1000 ${usedPct > 80 || isOutOfData ? 'bg-red-500' : 'bg-emerald-500'}`}
-                            style={{ width: `${Math.min(100, usedPct)}%` }}
-                          />
-                        </div>
+                      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-1000 ${usedPct > 80 || isOutOfData ? 'bg-red-500' : 'bg-emerald-500'}`}
+                          style={{ width: `${Math.min(100, usedPct)}%` }}
+                        />
                       </div>
                     </div>
 
