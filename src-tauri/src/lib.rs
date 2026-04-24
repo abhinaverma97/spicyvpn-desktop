@@ -168,22 +168,16 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "uuid": auth_info,
         "packet_encoding": "xudp",
         "domain_resolver": "dns-remote",
-        "multiplex": {
-            "enabled": true,
-            "protocol": "smux"
-        },
         "tls": {
             "enabled": true,
             "server_name": sni,
-            "insecure": insecure,
-            "utls": {
-                "enabled": true,
-                "fingerprint": "chrome"
-            }
+            "alpn": ["h2"]
         },
         "transport": {
             "type": transport_type,
-            "service_name": service_name
+            "service_name": service_name,
+            "idle_timeout": "15s",
+            "ping_timeout": "15s"
         }
     });
 
@@ -191,7 +185,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "log": { "level": "info" },
         "dns": {
             "servers": [
-                { "tag": "dns-remote", "type": "https", "server": "1.1.1.1", "server_port": 443, "path": "/dns-query", "detour": "proxy" },
+                { "tag": "dns-remote", "type": "https", "server": "1.1.1.1", "server_port": 443, "detour": "proxy" },
                 { "tag": "dns-direct", "type": "udp", "server": "8.8.8.8", "server_port": 53, "detour": "direct" }
             ]
         },
