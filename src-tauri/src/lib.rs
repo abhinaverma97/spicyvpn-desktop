@@ -110,8 +110,6 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             let _ = child.kill();
         }
         kill_orphaned_singbox();
-        // Give Windows kernel time to release the TUN interface and IP address
-        std::thread::sleep(std::time::Duration::from_millis(1000));
     }
     
     {
@@ -164,7 +162,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "type": "tun",
                 "tag": "tun-in",
                 "interface_name": "SpicyVPN-TUN",
-                "inet4_address": "172.24.1.1/30",
+                "inet4_address": "172.19.0.1/30",
                 "auto_route": true,
                 "strict_route": true,
                 "stack": "gvisor",
