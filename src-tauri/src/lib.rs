@@ -156,10 +156,42 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let sni = query.get("sni").cloned().unwrap_or(host.clone());
     let insecure = query.get("insecure").map(|v| v == "1").unwrap_or(false);
 
-    // 4. Generate optimized sing-box config for VLESS + gRPC
+    // 4. Generate optimized sing-box config for VLESS
     let transport_type = query.get("type").cloned().unwrap_or("grpc".to_string());
-    let service_name = query.get("serviceName").cloned().unwrap_or("spicypepper-grpc".to_string());
     
+    let mut tls = serde_json::json!({
+        "enabled": true,
+        "server_name": sni,
+        "insecure": insecure,
+        "utls": {
+            "enabled": true,
+            "fingerprint": "chrome"
+        }
+    });
+
+    if let Some(alpn) = query.get("alpn") {
+        tls["alpn"] = serde_json::json!(vec![alpn.clone()]);
+    }
+
+    let mut transport = serde_json::json!({
+        "type": transport_type
+    });
+
+    if transport_type == "grpc" {
+        let service_name = query.get("serviceName").cloned().unwrap_or("spicypepper-grpc".to_string());
+        transport["service_name"] = serde_json::json!(service_name);
+        transport["idle_timeout"] = serde_json::json!("15s");
+        transport["ping_timeout"] = serde_json::json!("15s");
+    } else {
+        if let Some(host) = query.get("host") {
+            // Some newer sing-box/xray cores use 'host' for xhttp/http modes
+            transport["host"] = serde_json::json!(vec![host.clone()]);
+        }
+        if let Some(path) = query.get("path") {
+            transport["path"] = serde_json::json!(path.clone());
+        }
+    }
+
     let outbound = serde_json::json!({
         "type": "vless",
         "tag": "proxy",
@@ -167,21 +199,8 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
         "server_port": port,
         "uuid": auth_info,
         "packet_encoding": "xudp",
-        "tls": {
-            "enabled": true,
-            "server_name": sni,
-            "insecure": insecure,
-            "utls": {
-                "enabled": true,
-                "fingerprint": "chrome"
-            }
-        },
-        "transport": {
-            "type": transport_type,
-            "service_name": service_name,
-            "idle_timeout": "15s",
-            "ping_timeout": "15s"
-        }
+        "tls": tls,
+        "transport": transport
     });
 
     let config_json = serde_json::json!({
