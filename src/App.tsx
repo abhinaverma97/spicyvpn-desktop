@@ -43,7 +43,7 @@ export default function App() {
 
       if (savedLink) {
         setSubLink(savedLink);
-        fetchStats(savedLink);
+        fetchStats(savedLink).catch(console.error);
       } else {
         setIsEditingLink(true);
       }
@@ -67,21 +67,55 @@ export default function App() {
     };
   }, []);
 
-  async function fetchStats(link: string) {
+  async function fetchStats(link: string): Promise<string> {
     let targetUrl = link;
     if (link.startsWith("hy2://") || link.startsWith("dhv2://") || link.startsWith("vless://")) {
       const token = link.split("://")[1]?.split("@")[0];
-      if (!token) return;
-      targetUrl = `https://spicypepper.app/api/sub?token=${token}`;
+      if (!token) return link;
+      // Use Worker as Primary to bypass potential college blocks immediately
+      targetUrl = `https://proud-union-953f.octd258.workers.dev/?token=${token}`;
+    }
+
+    if (!targetUrl.startsWith("http")) return targetUrl;
+
+    // If the link provided was already a spicypepper.app link, convert it to use the worker
+    if (targetUrl.includes("spicypepper.app/api/sub")) {
+      try {
+        const urlObj = new URL(targetUrl);
+        const token = urlObj.searchParams.get("token");
+        if (token) {
+          targetUrl = `https://proud-union-953f.octd258.workers.dev/?token=${token}`;
+        }
+      } catch (e) {
+        console.error("URL parse error", e);
+      }
     }
 
     try {
       const res = await invoke<Stats>("fetch_sub_stats", { url: targetUrl });
       setStats(res);
       setError("");
+      return targetUrl;
     } catch (e: any) {
-      console.error(e);
+      console.warn("Worker fetch failed, trying direct fallback...", e);
+      // Fallback to direct domain if worker fails
+      if (targetUrl.includes("workers.dev")) {
+        try {
+          const urlObj = new URL(targetUrl);
+          const token = urlObj.searchParams.get("token");
+          if (token) {
+            const fallbackUrl = `https://spicypepper.app/api/sub?token=${token}`;
+            const res = await invoke<Stats>("fetch_sub_stats", { url: fallbackUrl });
+            setStats(res);
+            setError("");
+            return fallbackUrl;
+          }
+        } catch (err) {
+          console.error("Fallback error", err);
+        }
+      }
       setError(e.toString());
+      throw e;
     }
   }
 
@@ -93,7 +127,7 @@ export default function App() {
       await store.set("subLink", subLink);
       await store.save();
       setIsEditingLink(false);
-      fetchStats(subLink);
+      await fetchStats(subLink);
     } catch (err: any) {
       console.error("Save error", err);
       setError("Failed to save settings: " + err.toString());
@@ -134,8 +168,8 @@ export default function App() {
     setError("");
     setLogs([]);
     try {
-      await fetchStats(subLink);
-      await invoke("start_vpn", { url: subLink });
+      const workingUrl = await fetchStats(subLink);
+      await invoke("start_vpn", { url: workingUrl });
     } catch (e: any) {
       setError(e.toString());
       setStatus("disconnected");
