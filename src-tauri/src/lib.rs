@@ -142,8 +142,21 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     // 3. Parse the URI
     let parsed_url = Url::parse(&uri).map_err(|e| format!("Invalid URI format: {}", e))?;
     let uuid = parsed_url.username().to_string();
-    let host = "140.245.13.64";
-    let port = 8444;
+    let host = parsed_url.host_str().unwrap_or("140.245.13.64").to_string();
+    let port = parsed_url.port().unwrap_or(8444);
+
+    // Extract query parameters for TLS settings
+    let mut allow_insecure = false;
+    let mut server_name = "spicypepper.app".to_string();
+
+    for (key, value) in parsed_url.query_pairs() {
+        if key == "allowInsecure" && (value == "1" || value == "true") {
+            allow_insecure = true;
+        }
+        if key == "sni" {
+            server_name = value.to_string();
+        }
+    }
 
     // 4. Generate optimized sing-box config for VLESS + gRPC (Legacy Format)
     let config_json = serde_json::json!({
@@ -180,7 +193,8 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 "packet_encoding": "xudp",
                 "tls": {
                     "enabled": true,
-                    "server_name": "spicypepper.app",
+                    "server_name": server_name,
+                    "insecure": allow_insecure,
                     "alpn": ["h2"]
                 },
                 "transport": {
@@ -198,7 +212,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             "rules": [
                 { "protocol": "dns", "outbound": "dns-out" },
                 { "ip_is_private": true, "outbound": "direct" },
-                { "outbound": "direct", "ip_cidr": [host] }
+                { "outbound": "direct", "ip_cidr": [&host] }
             ],
             "final": "proxy"
         }
