@@ -159,6 +159,16 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     }
 
     // 4. Generate optimized sing-box config for VLESS + gRPC (Legacy Format)
+    let is_ip = host.parse::<std::net::IpAddr>().is_ok();
+    let mut bypass_rule = serde_json::json!({
+        "outbound": "direct"
+    });
+    if is_ip {
+        bypass_rule["ip_cidr"] = serde_json::json!([host]);
+    } else {
+        bypass_rule["domain"] = serde_json::json!([host]);
+    }
+
     let config_json = serde_json::json!({
         "log": { "level": "info" },
         "dns": {
@@ -212,7 +222,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
             "rules": [
                 { "protocol": "dns", "outbound": "dns-out" },
                 { "ip_is_private": true, "outbound": "direct" },
-                { "outbound": "direct", "ip_cidr": [&host] }
+                bypass_rule
             ],
             "final": "proxy"
         }
