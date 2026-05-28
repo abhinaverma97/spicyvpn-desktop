@@ -1,7 +1,7 @@
 {
   "name": "desktopclient",
   "private": true,
-  "version": "1.0.70",
+  "version": "1.0.69",
   "type": "module",
   "scripts": {
     "dev": "vite",
