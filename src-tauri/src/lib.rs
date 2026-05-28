@@ -163,11 +163,25 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
     let mut bypass_rule = serde_json::json!({
         "outbound": "direct"
     });
+    
+    let mut dns_rules = vec![];
+    
     if is_ip {
         bypass_rule["ip_cidr"] = serde_json::json!([host]);
     } else {
         bypass_rule["domain"] = serde_json::json!([host]);
+        // If it's a domain, we MUST resolve it directly, not through the proxy
+        dns_rules.push(serde_json::json!({
+            "domain": [host],
+            "server": "dns-direct"
+        }));
     }
+    
+    // Add the default catch-all DNS rule
+    dns_rules.push(serde_json::json!({
+        "outbound": "any",
+        "server": "dns-remote"
+    }));
 
     let config_json = serde_json::json!({
         "log": { "level": "info" },
@@ -176,9 +190,7 @@ async fn start_vpn(url: String, app: AppHandle, state: State<'_, VpnState>) -> R
                 { "tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy" },
                 { "tag": "dns-direct", "address": "8.8.8.8", "detour": "direct" }
             ],
-            "rules": [
-                { "outbound": "any", "server": "dns-remote" }
-            ]
+            "rules": dns_rules
         },
         "inbounds": [
             {
